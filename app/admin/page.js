@@ -912,10 +912,11 @@ export default function AdminPanel() {
                                           />
                                         </div>
                                         <div>
-                                          <Label>اسم الحلقة (اختياري)</Label>
+                                          <Label>ترتيب العرض</Label>
                                           <Input
-                                            value={episodeForm.title}
-                                            onChange={(e) => setEpisodeForm({ ...episodeForm, title: e.target.value })}
+                                            type="number"
+                                            value={episodeForm.display_order}
+                                            onChange={(e) => setEpisodeForm({ ...episodeForm, display_order: parseInt(e.target.value) || 0 })}
                                             className="bg-black border-gray-700"
                                           />
                                         </div>
@@ -929,34 +930,6 @@ export default function AdminPanel() {
                                           placeholder="https://www.youtube.com/embed/..."
                                           required
                                         />
-                                      </div>
-                                      <div>
-                                        <Label>رابط صورة الحلقة (اختياري)</Label>
-                                        <Input
-                                          value={episodeForm.thumbnail}
-                                          onChange={(e) => setEpisodeForm({ ...episodeForm, thumbnail: e.target.value })}
-                                          className="bg-black border-gray-700"
-                                        />
-                                      </div>
-                                      <div className="grid md:grid-cols-2 gap-3">
-                                        <div>
-                                          <Label>المدة (دقيقة)</Label>
-                                          <Input
-                                            type="number"
-                                            value={episodeForm.duration}
-                                            onChange={(e) => setEpisodeForm({ ...episodeForm, duration: parseInt(e.target.value) || 0 })}
-                                            className="bg-black border-gray-700"
-                                          />
-                                        </div>
-                                        <div>
-                                          <Label>ترتيب العرض</Label>
-                                          <Input
-                                            type="number"
-                                            value={episodeForm.display_order}
-                                            onChange={(e) => setEpisodeForm({ ...episodeForm, display_order: parseInt(e.target.value) || 0 })}
-                                            className="bg-black border-gray-700"
-                                          />
-                                        </div>
                                       </div>
                                       <div className="flex gap-2">
                                         <Button type="submit" className="bg-red-600 hover:bg-red-700">
