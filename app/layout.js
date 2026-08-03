@@ -1,6 +1,7 @@
 import { Tajawal } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
+import PWAInstall from '@/components/pwa-install'
 
 const tajawal = Tajawal({ 
   subsets: ['arabic'],
@@ -11,14 +12,51 @@ const tajawal = Tajawal({
 export const metadata = {
   title: 'NOO TV - منصة البث العربية',
   description: 'شاهد آلاف الأفلام والمسلسلات العربية والعالمية',
+  manifest: '/manifest.json',
+  themeColor: '#dc2626',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'NOO TV',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  openGraph: {
+    title: 'NOO TV - منصة البث العربية',
+    description: 'شاهد آلاف الأفلام والمسلسلات العربية والعالمية',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96x96.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+      </head>
       <body className={`${tajawal.variable} font-sans antialiased`}>
         {children}
         <Toaster />
+        <PWAInstall />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) { console.log('SW registered:', reg.scope); })
+                    .catch(function(err) { console.log('SW registration failed:', err); });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )
