@@ -37,6 +37,8 @@ const emptySeriesForm = () => ({
   total_seasons: 1,
   thumbnail: '',
   banner: '',
+  is_translated: false,
+  is_dubbed: false,
   is_active: true,
   display_order: 0,
 })
@@ -1017,15 +1019,35 @@ export default function AdminPanel() {
                           </div>
                         </div>
 
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seriesForm.is_active}
-                            onChange={(e) => setSeriesForm({ ...seriesForm, is_active: e.target.checked })}
-                            className="w-4 h-4"
-                          />
-                          مفعل
-                        </label>
+                        <div className="flex flex-wrap gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={seriesForm.is_translated}
+                              onChange={(e) => setSeriesForm({ ...seriesForm, is_translated: e.target.checked })}
+                              className="w-4 h-4"
+                            />
+                            مترجم
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={seriesForm.is_dubbed}
+                              onChange={(e) => setSeriesForm({ ...seriesForm, is_dubbed: e.target.checked })}
+                              className="w-4 h-4"
+                            />
+                            مدبلج
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={seriesForm.is_active}
+                              onChange={(e) => setSeriesForm({ ...seriesForm, is_active: e.target.checked })}
+                              className="w-4 h-4"
+                            />
+                            مفعل
+                          </label>
+                        </div>
 
                         <div className="flex gap-2">
                           <Button type="submit" className="bg-red-600 hover:bg-red-700">
