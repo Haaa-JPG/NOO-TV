@@ -226,6 +226,7 @@ AS $$
 $$;
 
 -- Auto-create public.users profile when a new auth user signs up
+-- Also auto-confirms email so users can sign in immediately
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -233,6 +234,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  -- Auto-confirm email immediately (skip email verification)
+  UPDATE auth.users 
+  SET email_confirmed_at = NOW(),
+      raw_user_meta_data = raw_user_meta_data || '{"email_confirmed": true}'::jsonb
+  WHERE id = NEW.id;
+
+  -- Create public profile
   INSERT INTO public.users (id, email, display_name, avatar_url, role)
   VALUES (
     NEW.id,
