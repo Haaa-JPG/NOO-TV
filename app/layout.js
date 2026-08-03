@@ -2,6 +2,7 @@ import { Tajawal } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import PWAInstall from '@/components/pwa-install'
+import Footer from '@/components/footer'
 
 const tajawal = Tajawal({ 
   subsets: ['arabic'],
@@ -42,6 +43,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className={`${tajawal.variable} font-sans antialiased`}>
         {children}
+        <Footer />
         <Toaster />
         <PWAInstall />
         <script

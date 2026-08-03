@@ -87,6 +87,9 @@ export default function AdminPanel() {
   // Users
   const [users, setUsers] = useState([])
 
+  // Complaints
+  const [complaints, setComplaints] = useState([])
+
   // Stats
   const [stats, setStats] = useState({
     totalMovies: 0,
@@ -156,6 +159,13 @@ export default function AdminPanel() {
       .select('*')
       .order('created_at', { ascending: false })
     if (usersData) setUsers(usersData)
+
+    // Load complaints
+    const { data: complaintsData } = await supabase
+      .from('complaints')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (complaintsData) setComplaints(complaintsData)
 
     // Calculate stats
     setStats({
@@ -490,6 +500,9 @@ export default function AdminPanel() {
             </TabsTrigger>
             <TabsTrigger value="users" className="data-[state=active]:bg-red-600">
               <Users className="w-4 h-4 ml-2" /> المستخدمين
+            </TabsTrigger>
+            <TabsTrigger value="complaints" className="data-[state=active]:bg-red-600">
+              <Ban className="w-4 h-4 ml-2" /> الشكاوى ({complaints.filter(c => !c.is_read).length})
             </TabsTrigger>
           </TabsList>
 
@@ -1263,6 +1276,59 @@ export default function AdminPanel() {
                 <p className="text-center text-gray-400 py-8">لا يوجد مستخدمون بعد</p>
               )}
             </div>
+          </TabsContent>
+
+          {/* ================= COMPLAINTS ================= */}
+          <TabsContent value="complaints">
+            {complaints.length === 0 ? (
+              <div className="text-center py-10">
+                <Ban className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                <h3 className="text-xl text-gray-400">لا توجد شكاوى بعد</h3>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {complaints.map((complaint) => (
+                  <Card key={complaint.id} className={`bg-gray-900 border-gray-800 ${!complaint.is_read ? 'border-r-2 border-r-red-600' : ''}`}>
+                    <CardContent className="p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                        <div>
+                          <h3 className="font-bold text-lg">{complaint.subject}</h3>
+                          <p className="text-sm text-gray-400">{complaint.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!complaint.is_read && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                await supabase.from('complaints').update({ is_read: true }).eq('id', complaint.id)
+                                loadData()
+                              }}
+                            >
+                              تحديد كمقروء
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={async () => {
+                              if (!confirm('هل أنت متأكد من الحذف؟')) return
+                              await supabase.from('complaints').delete().eq('id', complaint.id)
+                              loadData()
+                            }}
+                            className="text-red-500"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-gray-300 mb-2">{complaint.message}</p>
+                      <p className="text-xs text-gray-500">{new Date(complaint.created_at).toLocaleString('ar')}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
