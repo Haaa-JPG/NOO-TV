@@ -1,11 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useRef } from 'react'
 
 // Smart video player with built-in ad/redirect protection.
 // Known providers (YouTube, Vimeo, etc.) render normally.
 // Unknown providers (anaplayer, etc.) get:
-//   - a transparent click-shield that blocks redirect-inducing clicks
-//   - a black top-bar strip that hides ad / server-select buttons
+//   - a transparent click shield that permanently blocks redirect-causing clicks
+//   - a floating control bar (play/pause, fullscreen) so you never need to click the video
 
 function parseYouTube(url) {
   const patterns = [
@@ -104,29 +104,59 @@ export default function VideoPlayer({ url, title = '', className = '' }) {
 }
 
 function ProtectedPlayer({ embedUrl, title, className }) {
-  const [shield, setShield] = useState(true)
+  const iframeRef = useRef(null)
+
+  const sendKey = (key) => {
+    const el = iframeRef.current
+    if (!el) return
+    el.focus()
+    el.dispatchEvent(new KeyboardEvent('keydown', { key, code: key === ' ' ? 'Space' : key.toUpperCase(), bubbles: true, cancelable: true }))
+  }
 
   return (
     <>
-      <iframe src={embedUrl} className={`w-full h-full bg-black ${className}`} title={title} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" />
+      <iframe
+        ref={iframeRef}
+        src={embedUrl}
+        className={`w-full h-full bg-black ${className}`}
+        title={title}
+        allowFullScreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+      />
 
-      {/* Click shield: blocks every click so nothing can open popups or redirect.
-          Positioned relative to the grandparent (the relative container).
-          The iframe still plays the video normally — clicks just don't reach it. */}
-      {shield && (
-        <div className="absolute inset-0 bg-transparent" style={{ zIndex: 40, cursor: 'default' }} />
-      )}
+      {/* Permanent click shield — blocks ALL clicks from reaching the iframe.
+          This prevents ad scripts from redirecting you when you click the video.
+          Video auto-plays and still works — you just can't click on it directly. */}
+      <div className="absolute inset-0" style={{ zIndex: 40 }} />
 
-      {/* Floating control bar — sits above the click shield */}
-      <div className="absolute top-0 left-0 right-0 flex justify-end p-2" style={{ zIndex: 50, pointerEvents: 'none' }}>
-        <button
-          type="button"
-          onClick={() => setShield((s) => !s)}
-          style={{ pointerEvents: 'auto' }}
-          className={`text-xs rounded px-2 py-1 shadow ${shield ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
-        >
-          {shield ? 'الحماية مفعّلة' : 'الحماية معطّلة'}
-        </button>
+      {/* Floating control bar — always visible above the shield */}
+      <div className="absolute top-2 left-0 right-0 flex justify-center" style={{ zIndex: 50, pointerEvents: 'none' }}>
+        <div className="flex items-center gap-3 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2" style={{ pointerEvents: 'auto' }}>
+          <button
+            type="button"
+            onClick={() => sendKey(' ')}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            title="تشغيل / إيقاف"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => sendKey('f')}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            title="شاشة كاملة"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => sendKey('m')}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            title="كتم الصوت"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          </button>
+        </div>
       </div>
     </>
   )
