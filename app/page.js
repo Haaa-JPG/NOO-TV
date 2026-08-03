@@ -63,13 +63,18 @@ export default function Home() {
       .limit(12)
     
     if (seriesData) {
-      // Fetch episode counts for each series
       const seriesWithCounts = await Promise.all(
         seriesData.map(async (show) => {
+          const { data: seasons } = await supabase
+            .from('seasons')
+            .select('id')
+            .eq('series_id', show.id)
+          if (!seasons || seasons.length === 0) return { ...show, episode_count: 0 }
+          const seasonIds = seasons.map(s => s.id)
           const { count } = await supabase
             .from('episodes')
             .select('*', { count: 'exact', head: true })
-            .eq('series_id', show.id)
+            .in('season_id', seasonIds)
           return { ...show, episode_count: count || 0 }
         })
       )
