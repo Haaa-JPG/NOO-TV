@@ -259,7 +259,8 @@ export default function WatchSeries() {
       </header>
 
       {/* Player */}
-        <div className="relative bg-black" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="pt-16">
+        <div className="relative bg-black" style={{ height: 'calc(100vh - 64px)' }}>
           {selectedEpisode?.embed_url ? (
             <VideoPlayer
               url={selectedEpisode.embed_url}
@@ -272,6 +273,7 @@ export default function WatchSeries() {
             </div>
           )}
         </div>
+      </div>
 
         <div className="container mx-auto px-4 py-8">
           <div className="grid lg:grid-cols-3 gap-8">

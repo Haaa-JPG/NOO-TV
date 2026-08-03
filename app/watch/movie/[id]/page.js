@@ -222,7 +222,8 @@ export default function WatchMovie() {
       </header>
 
       {/* Video Player */}
-        <div className="relative bg-black" style={{ height: 'calc(100vh - 60px)' }}>
+      <div className="pt-16">
+        <div className="relative bg-black" style={{ height: 'calc(100vh - 64px)' }}>
           {movie.embed_url ? (
             <VideoPlayer
               url={movie.embed_url}
@@ -235,6 +236,7 @@ export default function WatchMovie() {
             </div>
           )}
         </div>
+      </div>
 
         {/* Movie Info */}
         <div className="container mx-auto px-4 py-8">
