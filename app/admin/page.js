@@ -341,7 +341,7 @@ export default function AdminPanel() {
     try {
       const dataToSave = {
         ...episodeForm,
-        title: episodeForm.title || episodeDefaults.title ? `${episodeDefaults.title} ${episodeForm.title || ''}`.trim() : episodeForm.title,
+        title: episodeForm.title || (episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${episodeForm.episode_number}` : ''),
         thumbnail: episodeForm.thumbnail || episodeDefaults.thumbnail,
         duration: episodeForm.duration || episodeDefaults.duration,
       }
@@ -363,10 +363,10 @@ export default function AdminPanel() {
         const nextNum = (episodeForm.episode_number || 0) + 1
         setEpisodeForm({
           episode_number: nextNum,
-          title: episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${nextNum}` : '',
+          title: '',
           embed_url: '',
-          thumbnail: episodeDefaults.thumbnail,
-          duration: episodeDefaults.duration,
+          thumbnail: '',
+          duration: 0,
           display_order: nextNum,
           is_active: true
         })
@@ -846,10 +846,10 @@ export default function AdminPanel() {
                                   const nextNum = (expandedSeason?.episodes?.length || 0) + 1
                                   setEpisodeForm({
                                     episode_number: nextNum,
-                                    title: episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${nextNum}` : '',
+                                    title: '',
                                     embed_url: '',
-                                    thumbnail: episodeDefaults.thumbnail,
-                                    duration: episodeDefaults.duration,
+                                    thumbnail: '',
+                                    duration: 0,
                                     display_order: nextNum,
                                     is_active: true
                                   })
@@ -905,7 +905,7 @@ export default function AdminPanel() {
                                             value={episodeForm.episode_number}
                                             onChange={(e) => {
                                               const num = parseInt(e.target.value) || 1
-                                              setEpisodeForm({ ...episodeForm, episode_number: num, display_order: num, title: episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${num}` : episodeForm.title })
+                                              setEpisodeForm({ ...episodeForm, episode_number: num, display_order: num })
                                             }}
                                             className="bg-black border-gray-700"
                                             required
