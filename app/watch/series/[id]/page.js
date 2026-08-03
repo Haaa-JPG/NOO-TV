@@ -248,7 +248,7 @@ export default function WatchSeries() {
       })
     }
     await supabase.rpc('increment_episode_views', { ep_id: episode.id })
-    if (user && episode) loadEpisodeLikeForEpisode(episode.id)
+    loadEpisodeLikeForEpisode(episode.id)
   }
 
   const totalEpisodes = () => seasons.reduce((sum, s) => sum + (s.episodes?.length || 0), 0)
@@ -280,10 +280,10 @@ export default function WatchSeries() {
   }
 
   useEffect(() => {
-    if (selectedEpisode && user) {
+    if (selectedEpisode) {
       loadEpisodeLikeForEpisode(selectedEpisode.id)
     }
-  }, [selectedEpisode, user])
+  }, [selectedEpisode])
 
   const toggleEpisodeLike = async (isLike) => {
     if (!user) { router.push('/auth'); return }
