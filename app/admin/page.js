@@ -341,7 +341,7 @@ export default function AdminPanel() {
     try {
       const dataToSave = {
         ...episodeForm,
-        title: episodeForm.title || (episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${episodeForm.episode_number}` : ''),
+        title: episodeForm.title || episodeDefaults.title,
         thumbnail: episodeForm.thumbnail || episodeDefaults.thumbnail,
         duration: episodeForm.duration || episodeDefaults.duration,
       }
