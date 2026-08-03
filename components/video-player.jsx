@@ -9,8 +9,9 @@ import { useState } from 'react'
 // - Any other URL -> rendered inside an iframe
 
 // For unknown sources (third-party players with ads / server bars):
-// - sandbox blocks top navigation, popups and redirects on click
+// - a transparent click shield swallows clicks so nothing can redirect away
 // - a toggleable black strip hides the top bar & ad buttons inside the player
+// NOTE: sandbox is NOT used, because many players detect it and refuse to play
 
 function parseYouTube(url) {
   // https://www.youtube.com/watch?v=ID
@@ -99,6 +100,7 @@ export function toEmbedUrl(url) {
 
 export default function VideoPlayer({ url, title = '', className = '' }) {
   const [hideTopBar, setHideTopBar] = useState(true)
+  const [protection, setProtection] = useState(true)
   const embedUrl = toEmbedUrl(url)
 
   if (!embedUrl) {
@@ -137,41 +139,54 @@ export default function VideoPlayer({ url, title = '', className = '' }) {
         allowFullScreen
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
         referrerPolicy="strict-origin-when-cross-origin"
-        {...(protectedIframe
-          ? {
-              // No allow-top-navigation / allow-popups -> clicks can't redirect away
-              sandbox:
-                'allow-scripts allow-same-origin allow-presentation allow-forms',
-            }
-          : {})}
       />
 
-      {/* Overlay strip: hides the top bar / ad buttons / server-select buttons
-          (OK, VK, VidSpeed, AstroServers, etc.) inside third-party players */}
       {protectedIframe && (
         <>
+          {/* Black strip that hides the top bar / ad buttons / server-select
+              buttons (OK, VK, VidSpeed, etc.) inside third-party players */}
           <div
-            className={`absolute top-0 right-0 left-0 z-10 flex items-center justify-center bg-black transition-all ${
+            className={`absolute top-0 right-0 left-0 z-10 bg-black transition-all ${
               hideTopBar ? 'h-14' : 'h-0 pointer-events-none'
             }`}
+          />
+
+          {/* Transparent click shield: swallows all clicks so nothing can
+              redirect away or open popups. Video still plays normally. */}
+          <div
+            className={`absolute inset-0 z-20 ${
+              protection ? 'block' : 'pointer-events-none'
+            }`}
+          />
+
+          {/* Controls */}
+          <button
+            type="button"
+            onClick={() => setProtection((v) => !v)}
+            className={`absolute top-1 left-1 z-30 text-white/60 hover:text-white text-xs bg-black/50 rounded px-2 py-1 ${
+              protection ? 'bg-red-600/70 text-white' : ''
+            }`}
           >
-            <button
-              type="button"
-              onClick={() => setHideTopBar(false)}
-              className="text-white/40 hover:text-white text-xs"
-            >
-              عرض الشريط
-            </button>
-          </div>
-          {!hideTopBar && (
-            <button
-              type="button"
-              onClick={() => setHideTopBar(true)}
-              className="absolute bottom-1 left-1 z-20 text-white/70 hover:text-white text-xs bg-black/60 rounded px-2 py-1"
-            >
-              إخفاء الشريط
-            </button>
-          )}
+            {protection ? 'الحماية: مفعلة' : 'الحماية: معطلة'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setHideTopBar(false)}
+            className={`absolute top-1 right-1 z-30 text-white/40 hover:text-white text-xs bg-black/50 rounded px-2 py-1 ${
+              hideTopBar ? '' : 'hidden'
+            }`}
+          >
+            عرض الشريط
+          </button>
+          <button
+            type="button"
+            onClick={() => setHideTopBar(true)}
+            className={`absolute bottom-1 left-1 z-30 text-white/40 hover:text-white text-xs bg-black/50 rounded px-2 py-1 ${
+              hideTopBar ? 'hidden' : ''
+            }`}
+          >
+            إخفاء الشريط
+          </button>
         </>
       )}
     </div>
