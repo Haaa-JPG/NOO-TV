@@ -1,27 +1,10 @@
 import { NextResponse } from 'next/server'
 
-export function middleware(req) {
-  const url = req.nextUrl
-
-  // Only protect these routes
-  const isProtected =
-    url.pathname.startsWith('/admin') ||
-    url.pathname.startsWith('/user')
-
-  if (!isProtected) return NextResponse.next()
-
-  // Check for any Supabase auth cookie (sb-<project-ref>-auth-token)
-  const hasCookie = req.cookies.getAll().some(
-    (c) => c.name.includes('-auth-token') || c.name.startsWith('sb-')
-  )
-
-  if (!hasCookie) {
-    const redirect = url.clone()
-    redirect.pathname = '/auth'
-    redirect.searchParams.set('redirect', url.pathname)
-    return NextResponse.redirect(redirect)
-  }
-
+// Auth protection is handled client-side in each protected page
+// (the app stores the Supabase session in localStorage, not cookies,
+// so server-side middleware cannot reliably detect it).
+// This middleware only passes requests through.
+export function middleware() {
   return NextResponse.next()
 }
 
