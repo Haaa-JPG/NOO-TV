@@ -11,6 +11,11 @@ import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import VideoPlayer from '@/components/video-player'
 
+function sanitize(str) {
+  if (!str) return ''
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
 export default function WatchSeries() {
   const params = useParams()
   const router = useRouter()
@@ -528,7 +533,7 @@ export default function WatchSeries() {
                               </div>
                             </div>
                           </div>
-                          <p className="text-gray-300 mb-2">{comment.content}</p>
+                          <p className="text-gray-300 mb-2">{sanitize(comment.content)}</p>
                           <div className="flex items-center gap-4">
                             <button
                               onClick={() => toggleCommentLike(comment.id, true)}
@@ -563,7 +568,7 @@ export default function WatchSeries() {
                                 </div>
                               </div>
                             </div>
-                            <p className="text-gray-300 mb-2">{comment.content}</p>
+                            <p className="text-gray-300 mb-2">{sanitize(comment.content)}</p>
                             <div className="flex items-center gap-4">
                               <button
                                 onClick={() => toggleCommentLike(comment.id, true)}

@@ -14,6 +14,11 @@ import { useToast } from '@/hooks/use-toast'
 import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 
+function sanitize(str) {
+  if (!str) return ''
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
 const emptyMovieForm = () => ({
   title: '',
   description: '',
@@ -1357,8 +1362,8 @@ export default function AdminPanel() {
                     <CardContent className="p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                         <div>
-                          <h3 className="font-bold text-lg">{complaint.subject}</h3>
-                          <p className="text-sm text-gray-400">{complaint.email}</p>
+                          <h3 className="font-bold text-lg">{sanitize(complaint.subject)}</h3>
+                          <p className="text-sm text-gray-400">{sanitize(complaint.email)}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           {!complaint.is_read && (
@@ -1387,7 +1392,7 @@ export default function AdminPanel() {
                           </Button>
                         </div>
                       </div>
-                      <p className="text-gray-300 mb-2">{complaint.message}</p>
+                      <p className="text-gray-300 mb-2">{sanitize(complaint.message)}</p>
                       <p className="text-xs text-gray-500">{new Date(complaint.created_at).toLocaleString('ar')}</p>
                     </CardContent>
                   </Card>

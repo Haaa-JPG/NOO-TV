@@ -11,6 +11,11 @@ import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import VideoPlayer from '@/components/video-player'
 
+function sanitize(str) {
+  if (!str) return ''
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
 export default function WatchMovie() {
   const params = useParams()
   const router = useRouter()
@@ -327,7 +332,7 @@ export default function WatchMovie() {
                               <div className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString('ar')}</div>
                             </div>
                           </div>
-                          <p className="text-gray-300 mb-2">{comment.content}</p>
+                          <p className="text-gray-300 mb-2">{sanitize(comment.content)}</p>
                           <div className="flex items-center gap-4">
                             <button onClick={() => toggleCommentLike(comment.id, true)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition">
                               <ThumbsUp className="w-4 h-4" /><span>{commentLikes[comment.id]?.likes || 0}</span>
@@ -352,7 +357,7 @@ export default function WatchMovie() {
                                 <div className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString('ar')}</div>
                               </div>
                             </div>
-                            <p className="text-gray-300 mb-2">{comment.content}</p>
+                            <p className="text-gray-300 mb-2">{sanitize(comment.content)}</p>
                             <div className="flex items-center gap-4">
                               <button onClick={() => toggleCommentLike(comment.id, true)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition">
                                 <ThumbsUp className="w-4 h-4" /><span>{commentLikes[comment.id]?.likes || 0}</span>
