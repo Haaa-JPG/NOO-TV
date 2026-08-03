@@ -59,7 +59,22 @@ export default function WatchMovie() {
     const { data } = await supabase.from('movies').select('*').eq('id', params.id).single()
     if (data) {
       setMovie(data)
-      await supabase.rpc('increment_movie_views', { movie_id: params.id })
+      let sessionId = localStorage.getItem('nootv_session')
+      if (!sessionId) {
+        sessionId = crypto.randomUUID()
+        localStorage.setItem('nootv_session', sessionId)
+      }
+      const { data: existing } = await supabase
+        .from('view_tracking')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('content_type', 'movie')
+        .eq('content_id', params.id)
+        .maybeSingle()
+      if (!existing) {
+        await supabase.from('view_tracking').insert({ session_id: sessionId, content_type: 'movie', content_id: params.id })
+        await supabase.rpc('increment_movie_views', { movie_id: params.id })
+      }
       loadComments(params.id)
     }
     setLoading(false)

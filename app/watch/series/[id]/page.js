@@ -60,7 +60,22 @@ export default function WatchSeries() {
       setShow(data)
       await loadSeasons(data.id)
       loadComments(data.id)
-      await supabase.rpc('increment_series_views', { sid: params.id })
+      let sessionId = localStorage.getItem('nootv_session')
+      if (!sessionId) {
+        sessionId = crypto.randomUUID()
+        localStorage.setItem('nootv_session', sessionId)
+      }
+      const { data: existing } = await supabase
+        .from('view_tracking')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('content_type', 'series')
+        .eq('content_id', params.id)
+        .maybeSingle()
+      if (!existing) {
+        await supabase.from('view_tracking').insert({ session_id: sessionId, content_type: 'series', content_id: params.id })
+        await supabase.rpc('increment_series_views', { sid: params.id })
+      }
     }
     setLoading(false)
   }
@@ -247,7 +262,22 @@ export default function WatchSeries() {
         duration: episode.duration || 0
       })
     }
-    await supabase.rpc('increment_episode_views', { ep_id: episode.id })
+    let sessionId = localStorage.getItem('nootv_session')
+    if (!sessionId) {
+      sessionId = crypto.randomUUID()
+      localStorage.setItem('nootv_session', sessionId)
+    }
+    const { data: existing } = await supabase
+      .from('view_tracking')
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('content_type', 'episode')
+      .eq('content_id', episode.id)
+      .maybeSingle()
+    if (!existing) {
+      await supabase.from('view_tracking').insert({ session_id: sessionId, content_type: 'episode', content_id: episode.id })
+      await supabase.rpc('increment_episode_views', { ep_id: episode.id })
+    }
     loadEpisodeLikeForEpisode(episode.id)
   }
 
