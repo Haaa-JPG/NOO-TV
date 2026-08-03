@@ -19,6 +19,7 @@ export default function Home() {
   const [categories, setCategories] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [showMenu, setShowMenu] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   useEffect(() => {
     checkUser()
@@ -126,6 +127,16 @@ export default function Home() {
                 </div>
               </form>
 
+              {/* Mobile Menu Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+
               {/* User Menu */}
               {user ? (
                 <div className="relative">
@@ -176,6 +187,119 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Mobile Menu */}
+      {showMobileMenu && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/80" onClick={() => setShowMobileMenu(false)} />
+          <div className="absolute top-0 right-0 w-72 h-full bg-gray-900 shadow-xl p-6">
+            <div className="flex justify-between items-center mb-8">
+              <span className="text-xl font-bold text-red-600">NOO TV</span>
+              <Button variant="ghost" size="icon" onClick={() => setShowMobileMenu(false)}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </Button>
+            </div>
+            
+            {/* Mobile Search */}
+            <form onSubmit={handleSearch} className="mb-6">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="ابحث عن فيلم أو مسلسل..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-black border-gray-700 text-white pr-10 w-full"
+                />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              </div>
+            </form>
+
+            {/* Mobile Navigation */}
+            <nav className="space-y-4">
+              <Link 
+                href="/" 
+                className="block py-2 hover:text-red-500 transition"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                الرئيسية
+              </Link>
+              <Link 
+                href="/movies" 
+                className="block py-2 hover:text-red-500 transition"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                أفلام
+              </Link>
+              <Link 
+                href="/series" 
+                className="block py-2 hover:text-red-500 transition"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                مسلسلات
+              </Link>
+              <Link 
+                href="/categories" 
+                className="block py-2 hover:text-red-500 transition"
+                onClick={() => setShowMobileMenu(false)}
+              >
+                التصنيفات
+              </Link>
+              
+              <hr className="border-gray-700" />
+              
+              {user ? (
+                <>
+                  <Link 
+                    href="/user" 
+                    className="block py-2 hover:text-red-500 transition"
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    حسابي
+                  </Link>
+                  <Link 
+                    href="/user?tab=watchlist" 
+                    className="block py-2 hover:text-red-500 transition"
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    المفضلة
+                  </Link>
+                  <Link 
+                    href="/user?tab=history" 
+                    className="block py-2 hover:text-red-500 transition"
+                    onClick={() => setShowMobileMenu(false)}
+                  >
+                    سجل المشاهدة
+                  </Link>
+                  {user?.user_metadata?.role === 'admin' && (
+                    <Link 
+                      href="/admin" 
+                      className="block py-2 text-red-500 hover:text-red-400 transition"
+                      onClick={() => setShowMobileMenu(false)}
+                    >
+                      لوحة التحكم
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => { handleSignOut(); setShowMobileMenu(false); }}
+                    className="block w-full text-right py-2 hover:text-red-500 transition"
+                  >
+                    تسجيل الخروج
+                  </button>
+                </>
+              ) : (
+                <Button 
+                  onClick={() => { router.push('/auth'); setShowMobileMenu(false); }}
+                  className="w-full bg-red-600 hover:bg-red-700"
+                >
+                  تسجيل الدخول
+                </Button>
+              )}
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* Hero Banner */}
       <section className="relative h-[600px] mt-16">
