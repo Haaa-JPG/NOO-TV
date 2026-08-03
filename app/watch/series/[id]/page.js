@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
+import VideoPlayer from '@/components/video-player'
 
 export default function WatchSeries() {
   const params = useParams()
@@ -261,11 +262,10 @@ export default function WatchSeries() {
       <div className="pt-16">
         <div className="relative bg-black" style={{ paddingTop: '56.25%' }}>
           {selectedEpisode?.embed_url ? (
-            <iframe
-              src={selectedEpisode.embed_url}
+            <VideoPlayer
+              url={selectedEpisode.embed_url}
+              title={selectedEpisode.title}
               className="absolute top-0 right-0 w-full h-full"
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             />
           ) : (
             <div className="absolute top-0 right-0 w-full h-full flex items-center justify-center bg-gray-900">

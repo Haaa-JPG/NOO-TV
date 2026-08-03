@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Heart, Star, Share2, ArrowRight, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
+import VideoPlayer from '@/components/video-player'
 
 export default function WatchMovie() {
   const params = useParams()
@@ -224,11 +225,10 @@ export default function WatchMovie() {
       <div className="pt-16">
         <div className="relative bg-black" style={{ paddingTop: '56.25%' }}>
           {movie.embed_url ? (
-            <iframe
-              src={movie.embed_url}
+            <VideoPlayer
+              url={movie.embed_url}
+              title={movie.title}
               className="absolute top-0 right-0 w-full h-full"
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             />
           ) : (
             <div className="absolute top-0 right-0 w-full h-full flex items-center justify-center bg-gray-900">
