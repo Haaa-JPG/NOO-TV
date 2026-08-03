@@ -259,16 +259,15 @@ export default function WatchSeries() {
       </header>
 
       {/* Player */}
-      <div className="pt-16">
-        <div className="relative bg-black" style={{ paddingTop: '56.25%' }}>
+        <div className="relative bg-black" style={{ height: 'calc(100vh - 60px)' }}>
           {selectedEpisode?.embed_url ? (
             <VideoPlayer
               url={selectedEpisode.embed_url}
               title={selectedEpisode.title}
-              className="absolute top-0 right-0 w-full h-full"
+              className="w-full h-full"
             />
           ) : (
-            <div className="absolute top-0 right-0 w-full h-full flex items-center justify-center bg-gray-900">
+            <div className="w-full h-full flex items-center justify-center bg-gray-900">
               <p className="text-gray-400">اختر حلقة للمشاهدة</p>
             </div>
           )}
@@ -465,7 +464,6 @@ export default function WatchSeries() {
             </div>
           </div>
         </div>
-      </div>
     </div>
   )
 }
