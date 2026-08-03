@@ -49,10 +49,21 @@ function isDirectVideo(url) {
   return /\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)
 }
 
+// Extract src from a full iframe embed code like:
+// <iframe src="https://..." ...></iframe>
+function extractIframeSrc(value) {
+  const match = value.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']+)["']/i)
+  return match ? match[1] : null
+}
+
 // Convert any supported URL into a working embed URL
 export function toEmbedUrl(url) {
   if (!url) return null
   const trimmed = url.trim()
+
+  // If the value is a full iframe tag, extract its src
+  const iframeSrc = extractIframeSrc(trimmed)
+  if (iframeSrc) return toEmbedUrl(iframeSrc)
 
   // Normalize common URL typos (missing protocol)
   let normalized = trimmed
