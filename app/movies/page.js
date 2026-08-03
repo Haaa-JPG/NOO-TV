@@ -148,6 +148,8 @@ function MoviesContent() {
                     <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
                       <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
                       <span>{movie.average_rating || '0.0'}</span>
+                      {movie.is_dubbed && <Badge className="bg-blue-600 text-[10px] px-1 py-0">مدبلج</Badge>}
+                      {movie.is_translated && <Badge className="bg-green-600 text-[10px] px-1 py-0">مترجم</Badge>}
                       {movie.year && <span>• {movie.year}</span>}
                     </div>
                   </CardContent>
