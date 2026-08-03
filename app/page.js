@@ -168,7 +168,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <Button onClick={() => router.push('/auth')} className="bg-red-600 hover:bg-red-700">
+                <Button onClick={() => router.push('/auth')} className="bg-red-600 hover:bg-red-700 text-white">
                   تسجيل الدخول
                 </Button>
               )}
@@ -188,7 +188,7 @@ export default function Home() {
               شاهد آلاف الأفلام والمسلسلات العربية والعالمية بجودة عالية
             </p>
             <div className="flex gap-4">
-              <Button size="lg" className="bg-red-600 hover:bg-red-700" onClick={() => router.push('/movies')}>
+              <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push('/movies')}>
                 <Play className="w-5 h-5 ml-2" />
                 ابدأ المشاهدة
               </Button>

@@ -815,7 +815,7 @@ export default function AdminPanel() {
                                   setEpisodeForm({ episode_number: (expandedSeason?.episodes?.length || 0) + 1, title: '', embed_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
                                   setShowEpisodeForm(!showEpisodeForm)
                                 }}
-                                className="bg-blue-600 hover:bg-blue-700 mb-2"
+                                className="bg-blue-600 hover:bg-blue-700 text-white mb-2"
                               >
                                 <Plus className="w-4 h-4 ml-2" /> إضافة حلقة
                               </Button>
