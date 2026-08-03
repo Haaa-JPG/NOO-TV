@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 
 // Smart video player that supports any embed/video source:
 // - YouTube (watch, youtu.be, shorts, embed) -> converted to embed
@@ -6,6 +7,10 @@
 // - Dailymotion -> converted to embed
 // - Direct video files (mp4, webm, ogv, mov) -> HTML5 video tag
 // - Any other URL -> rendered inside an iframe
+
+// For unknown sources (third-party players with ads / server bars):
+// - sandbox blocks top navigation, popups and redirects on click
+// - a toggleable black strip hides the top bar & ad buttons inside the player
 
 function parseYouTube(url) {
   // https://www.youtube.com/watch?v=ID
@@ -56,6 +61,18 @@ function extractIframeSrc(value) {
   return match ? match[1] : null
 }
 
+// Known safe providers don't need ad-blocking / click protection
+function isKnownProvider(embedUrl) {
+  return (
+    embedUrl.includes('youtube.com') ||
+    embedUrl.includes('youtu.be') ||
+    embedUrl.includes('vimeo.com') ||
+    embedUrl.includes('dailymotion.com') ||
+    embedUrl.includes('wistia.com') ||
+    embedUrl.includes('wistia.net')
+  )
+}
+
 // Convert any supported URL into a working embed URL
 export function toEmbedUrl(url) {
   if (!url) return null
@@ -81,11 +98,12 @@ export function toEmbedUrl(url) {
 }
 
 export default function VideoPlayer({ url, title = '', className = '' }) {
+  const [hideTopBar, setHideTopBar] = useState(true)
   const embedUrl = toEmbedUrl(url)
 
   if (!embedUrl) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900">
+      <div className={`w-full h-full flex items-center justify-center bg-gray-900 ${className}`}>
         <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
       </div>
     )
@@ -94,26 +112,68 @@ export default function VideoPlayer({ url, title = '', className = '' }) {
   // Direct video files -> native HTML5 player
   if (isDirectVideo(embedUrl)) {
     return (
-      <video
-        src={embedUrl}
-        controls
-        autoPlay
-        playsInline
-        className="w-full h-full object-contain bg-black"
-        title={title}
-      />
+      <div className={`relative ${className}`}>
+        <video
+          src={embedUrl}
+          controls
+          autoPlay
+          playsInline
+          className="w-full h-full object-contain bg-black"
+          title={title}
+        />
+      </div>
     )
   }
 
+  const protectedIframe = !isKnownProvider(embedUrl)
+
   // Everything else -> iframe
   return (
-    <iframe
-      src={embedUrl}
-      className={`w-full h-full bg-black ${className}`}
-      title={title}
-      allowFullScreen
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
+    <div className={`relative ${className}`}>
+      <iframe
+        src={embedUrl}
+        className="w-full h-full bg-black"
+        title={title}
+        allowFullScreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+        referrerPolicy="strict-origin-when-cross-origin"
+        {...(protectedIframe
+          ? {
+              // No allow-top-navigation / allow-popups -> clicks can't redirect away
+              sandbox:
+                'allow-scripts allow-same-origin allow-presentation allow-forms',
+            }
+          : {})}
+      />
+
+      {/* Overlay strip: hides the top bar / ad buttons / server-select buttons
+          (OK, VK, VidSpeed, AstroServers, etc.) inside third-party players */}
+      {protectedIframe && (
+        <>
+          <div
+            className={`absolute top-0 right-0 left-0 z-10 flex items-center justify-center bg-black transition-all ${
+              hideTopBar ? 'h-14' : 'h-0 pointer-events-none'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setHideTopBar(false)}
+              className="text-white/40 hover:text-white text-xs"
+            >
+              عرض الشريط
+            </button>
+          </div>
+          {!hideTopBar && (
+            <button
+              type="button"
+              onClick={() => setHideTopBar(true)}
+              className="absolute bottom-1 left-1 z-20 text-white/70 hover:text-white text-xs bg-black/60 rounded px-2 py-1"
+            >
+              إخفاء الشريط
+            </button>
+          )}
+        </>
+      )}
+    </div>
   )
 }
