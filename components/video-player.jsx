@@ -1,11 +1,12 @@
 'use client'
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 
-// Smart video player with built-in ad/redirect protection.
-// Known providers (YouTube, Vimeo, etc.) render normally.
-// Unknown providers (anaplayer, etc.) get:
-//   - a transparent click shield that permanently blocks redirect-causing clicks
-//   - a floating control bar (play/pause, fullscreen) so you never need to click the video
+// Smart video player — supports any source:
+// - YouTube / Vimeo / Dailymotion / Wistia → embed iframe
+// - .m3u8 (HLS) → native video with hls.js
+// - .mp4 / .webm / .mov / .ogv → native HTML5 video
+// - Full iframe embed codes → extract src and render
+// - Any other URL → generic iframe
 
 function parseYouTube(url) {
   const patterns = [
@@ -17,28 +18,30 @@ function parseYouTube(url) {
   ]
   for (const p of patterns) {
     const m = url.match(p)
-    if (m) return `https://www.youtube.com/embed/${m[1]}`
+    if (m) return { embed: `https://www.youtube.com/embed/${m[1]}`, type: 'iframe' }
   }
   return null
 }
 
-function parseVimeo(u) {
-  const m = u.match(/vimeo\.com\/(?:video\/)?(\d+)/)
-  return m ? `https://player.vimeo.com/video/${m[1]}` : null
+function parseVimeo(url) {
+  const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
+  return m ? { embed: `https://player.vimeo.com/video/${m[1]}`, type: 'iframe' } : null
 }
 
-function parseDailymotion(u) {
-  const m = u.match(/(?:dailymotion\.com|dai\.ly)\/video\/([\w]+)/)
-  return m ? `https://www.dailymotion.com/embed/video/${m[1]}` : null
+function parseDailymotion(url) {
+  const m = url.match(/(?:dailymotion\.com|dai\.ly)\/video\/([\w]+)/)
+  return m ? { embed: `https://www.dailymotion.com/embed/video/${m[1]}`, type: 'iframe' } : null
 }
 
-function parseWistia(u) {
-  const m = u.match(/wistia\.(?:com|net)\/medias\/([\w]+)/)
-  return m ? `https://fast.wistia.net/embed/iframe/${m[1]}` : null
+function parseWistia(url) {
+  const m = url.match(/wistia\.(?:com|net)\/medias\/([\w]+)/)
+  return m ? { embed: `https://fast.wistia.net/embed/iframe/${m[1]}`, type: 'iframe' } : null
 }
 
-function isDirectVideo(url) {
-  return /\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)
+function detectType(url) {
+  if (/\.m3u8(\?.*)?$/i.test(url)) return 'hls'
+  if (/\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)) return 'video'
+  return 'iframe'
 }
 
 function extractIframeSrc(value) {
@@ -46,18 +49,7 @@ function extractIframeSrc(value) {
   return m ? m[1] : null
 }
 
-function isKnownProvider(url) {
-  return (
-    url.includes('youtube.com') ||
-    url.includes('youtu.be') ||
-    url.includes('vimeo.com') ||
-    url.includes('dailymotion.com') ||
-    url.includes('wistia.com') ||
-    url.includes('wistia.net')
-  )
-}
-
-export function toEmbedUrl(url) {
+function toEmbedUrl(url) {
   if (!url) return null
   const trimmed = url.trim()
   const iframeSrc = extractIframeSrc(trimmed)
@@ -69,95 +61,84 @@ export function toEmbedUrl(url) {
     parseVimeo(normalized) ||
     parseDailymotion(normalized) ||
     parseWistia(normalized) ||
-    normalized
+    { embed: normalized, type: detectType(normalized) }
   )
 }
 
-export default function VideoPlayer({ url, title = '', className = '' }) {
-  const embedUrl = toEmbedUrl(url)
+function HlsVideo({ url, title }) {
+  const videoRef = useRef(null)
 
-  if (!embedUrl) {
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    let hls = null
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari / iOS — native HLS support
+      video.src = url
+    } else {
+      // Chrome / Firefox / Edge — use hls.js
+      import('hls.js').then(({ default: Hls }) => {
+        hls = new Hls({ maxBufferLength: 30 })
+        hls.loadSource(url)
+        hls.attachMedia(video)
+        hls.on('error', () => {})
+      })
+    }
+
+    return () => { if (hls) hls.destroy() }
+  }, [url])
+
+  return (
+    <video
+      ref={videoRef}
+      controls
+      autoPlay
+      playsInline
+      className="w-full h-full object-contain bg-black"
+      title={title}
+    />
+  )
+}
+
+export default function VideoPlayer({ url, title = '' }) {
+  const result = toEmbedUrl(url)
+
+  if (!result) {
     return (
-      <div className={`w-full h-full flex items-center justify-center bg-gray-900 ${className}`}>
+      <div className="w-full h-full flex items-center justify-center bg-gray-900">
         <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
       </div>
     )
   }
 
-  if (isDirectVideo(embedUrl)) {
+  if (result.type === 'hls') {
+    return <HlsVideo url={result.embed} title={title} />
+  }
+
+  if (result.type === 'video') {
     return (
-      <div className={className}>
-        <video src={embedUrl} controls autoPlay playsInline className="w-full h-full object-contain bg-black" title={title} />
-      </div>
-    )
-  }
-
-  if (isKnownProvider(embedUrl)) {
-    return (
-      <div className={className}>
-        <iframe src={embedUrl} className="w-full h-full bg-black" title={title} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" />
-      </div>
-    )
-  }
-
-  return <ProtectedPlayer embedUrl={embedUrl} title={title} className={className} />
-}
-
-function ProtectedPlayer({ embedUrl, title, className }) {
-  const iframeRef = useRef(null)
-
-  const sendKey = (key) => {
-    const el = iframeRef.current
-    if (!el) return
-    el.focus()
-    el.dispatchEvent(new KeyboardEvent('keydown', { key, code: key === ' ' ? 'Space' : key.toUpperCase(), bubbles: true, cancelable: true }))
-  }
-
-  return (
-    <>
-      <iframe
-        ref={iframeRef}
-        src={embedUrl}
-        className={`w-full h-full bg-black ${className}`}
+      <video
+        src={result.embed}
+        controls
+        autoPlay
+        playsInline
+        className="w-full h-full object-contain bg-black"
         title={title}
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
       />
+    )
+  }
 
-      {/* Permanent click shield — blocks ALL clicks from reaching the iframe.
-          This prevents ad scripts from redirecting you when you click the video.
-          Video auto-plays and still works — you just can't click on it directly. */}
-      <div className="absolute inset-0" style={{ zIndex: 40 }} />
-
-      {/* Floating control bar — always visible above the shield */}
-      <div className="absolute top-2 left-0 right-0 flex justify-center" style={{ zIndex: 50, pointerEvents: 'none' }}>
-        <div className="flex items-center gap-3 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2" style={{ pointerEvents: 'auto' }}>
-          <button
-            type="button"
-            onClick={() => sendKey(' ')}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title="تشغيل / إيقاف"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => sendKey('f')}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title="شاشة كاملة"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => sendKey('m')}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title="كتم الصوت"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-          </button>
-        </div>
-      </div>
-    </>
+  // iframe — YouTube, Vimeo, Dailymotion, Wistia, or any other
+  return (
+    <iframe
+      src={result.embed}
+      className="w-full h-full bg-black"
+      title={title}
+      allowFullScreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
   )
 }
