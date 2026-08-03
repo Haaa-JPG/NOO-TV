@@ -6,7 +6,7 @@ import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo, ThumbsUp, ThumbsDown, ChevronDown, Disc } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import VideoPlayer from '@/components/video-player'
@@ -24,6 +24,7 @@ export default function WatchSeries() {
   const [show, setShow] = useState(null)
   const [seasons, setSeasons] = useState([])
   const [selectedEpisode, setSelectedEpisode] = useState(null)
+  const [selectedSeason, setSelectedSeason] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [userRating, setUserRating] = useState(0)
@@ -116,6 +117,7 @@ export default function WatchSeries() {
 
     const firstSeason = withEpisodes.find((s) => s.episodes.length > 0)
     if (firstSeason) {
+      setSelectedSeason(firstSeason)
       setSelectedEpisode(firstSeason.episodes[0])
     }
   }
@@ -289,8 +291,6 @@ export default function WatchSeries() {
 
   const totalEpisodes = () => seasons.reduce((sum, s) => sum + (s.episodes?.length || 0), 0)
 
-  const allEpisodes = seasons.flatMap(s => s.episodes || [])
-
   const loadEpisodeLikeForEpisode = async (episodeId) => {
     if (!episodeId) {
       setEpisodeLike(null)
@@ -441,7 +441,7 @@ export default function WatchSeries() {
               </div>
             </div>
 
-            {/* Scrollable episodes list */}
+            {/* Scrollable episodes list - grouped by season */}
             <Card className="bg-gray-900 border-gray-800 mb-6">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -449,30 +449,67 @@ export default function WatchSeries() {
                   الحلقات ({totalEpisodes()})
                 </h3>
 
-                {allEpisodes.length === 0 ? (
+                {seasons.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">لا توجد حلقات متاحة بعد</p>
                 ) : (
-                  <div className="max-h-[400px] overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
-                    {allEpisodes.map((ep) => (
-                      <button
-                        key={ep.id}
-                        onClick={() => startEpisode(ep)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg border transition text-right ${
-                          selectedEpisode?.id === ep.id
-                            ? 'border-red-600 bg-red-600/10'
-                            : 'border-gray-800 hover:border-gray-600 bg-gray-950'
-                        }`}
-                      >
-                        <Play className="w-4 h-4 shrink-0 text-red-600" />
-                        <div className="flex-1 text-right">
-                          <div className="font-semibold text-sm">
-                            الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
-                          </div>
-                        </div>
-                        <span className="text-xs text-gray-500 shrink-0">{ep.views || 0} مشاهدة</span>
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    {/* Season Tabs */}
+                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+                      {seasons.map((season) => (
+                        <button
+                          key={season.id}
+                          onClick={() => {
+                            setSelectedSeason(season)
+                            if (season.episodes.length > 0 && !season.episodes.find(e => e.id === selectedEpisode?.id)) {
+                              setSelectedEpisode(season.episodes[0])
+                            }
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition shrink-0 ${
+                            selectedSeason?.id === season.id
+                              ? 'bg-red-600 text-white'
+                              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                          }`}
+                        >
+                          <Disc className="w-4 h-4" />
+                          {season.title || `الموسم ${season.season_number}`}
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            selectedSeason?.id === season.id ? 'bg-red-700' : 'bg-gray-700'
+                          }`}>
+                            {season.episodes.length}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Episodes of selected season */}
+                    {selectedSeason && (
+                      <div className="max-h-[400px] overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+                        {selectedSeason.episodes.length === 0 ? (
+                          <p className="text-gray-400 text-center py-8">لا توجد حلقات في هذا الموسم</p>
+                        ) : (
+                          selectedSeason.episodes.map((ep) => (
+                            <button
+                              key={ep.id}
+                              onClick={() => startEpisode(ep)}
+                              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition text-right ${
+                                selectedEpisode?.id === ep.id
+                                  ? 'border-red-600 bg-red-600/10'
+                                  : 'border-gray-800 hover:border-gray-600 bg-gray-950'
+                              }`}
+                            >
+                              <Play className="w-4 h-4 shrink-0 text-red-600" />
+                              <div className="flex-1 text-right">
+                                <div className="font-semibold text-sm">
+                                  الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
+                                </div>
+                              </div>
+                              <span className="text-xs text-gray-500 shrink-0">{ep.views || 0} مشاهدة</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
