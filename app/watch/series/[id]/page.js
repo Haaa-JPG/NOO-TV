@@ -6,7 +6,7 @@ import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp } from 'lucide-react'
+import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo, ThumbsUp, ThumbsDown } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import VideoPlayer from '@/components/video-player'
@@ -16,7 +16,6 @@ export default function WatchSeries() {
   const router = useRouter()
   const { toast } = useToast()
   const [user, setUser] = useState(null)
-  const [userProfile, setUserProfile] = useState(null)
   const [show, setShow] = useState(null)
   const [seasons, setSeasons] = useState([])
   const [selectedEpisode, setSelectedEpisode] = useState(null)
@@ -25,9 +24,8 @@ export default function WatchSeries() {
   const [userRating, setUserRating] = useState(0)
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
-  const [showAllEpisodes, setShowAllEpisodes] = useState(false)
   const [commentLikes, setCommentLikes] = useState({})
-  const [episodeLikes, setEpisodeLikes] = useState({})
+  const [episodeLike, setEpisodeLike] = useState(null)
 
   useEffect(() => {
     loadSeries()
@@ -45,7 +43,6 @@ export default function WatchSeries() {
         return
       }
       setUser(u)
-      setUserProfile(profile)
       checkWatchlist(u.id)
       loadUserRating(u.id)
     }
@@ -113,7 +110,6 @@ export default function WatchSeries() {
       return
     }
 
-    // Fetch user profiles separately
     const userIds = [...new Set(commentsData.map(c => c.user_id))]
     const { data: profiles } = await supabase
       .from('users')
@@ -240,6 +236,7 @@ export default function WatchSeries() {
 
   const startEpisode = async (episode) => {
     setSelectedEpisode(episode)
+    setEpisodeLike(null)
     if (user) {
       await supabase.from('watch_history').insert({
         user_id: user.id,
@@ -250,59 +247,57 @@ export default function WatchSeries() {
       })
     }
     await supabase.rpc('increment_episode_views', { ep_id: episode.id })
+    if (user && episode) loadEpisodeLikeForEpisode(episode.id)
   }
 
   const totalEpisodes = () => seasons.reduce((sum, s) => sum + (s.episodes?.length || 0), 0)
 
   const allEpisodes = seasons.flatMap(s => s.episodes || [])
-  const visibleEpisodes = showAllEpisodes ? allEpisodes : allEpisodes.slice(0, 5)
 
-  const loadEpisodeLikes = async (episodeIds) => {
-    if (!episodeIds.length) return
+  const loadEpisodeLikeForEpisode = async (episodeId) => {
+    if (!user || !episodeId) return
     const { data } = await supabase
       .from('episode_likes')
-      .select('episode_id, is_like')
-      .in('episode_id', episodeIds)
-
-    const likes = {}
-    ;(data || []).forEach(l => {
-      if (!likes[l.episode_id]) likes[l.episode_id] = { likes: 0, dislikes: 0 }
-      if (l.is_like) likes[l.episode_id].likes++
-      else likes[l.episode_id].dislikes++
-    })
-    setEpisodeLikes(likes)
+      .select('is_like')
+      .eq('user_id', user.id)
+      .eq('episode_id', episodeId)
+      .maybeSingle()
+    setEpisodeLike(data?.is_like ?? null)
   }
 
   useEffect(() => {
-    if (visibleEpisodes.length > 0) {
-      loadEpisodeLikes(visibleEpisodes.map(e => e.id))
+    if (selectedEpisode && user) {
+      loadEpisodeLikeForEpisode(selectedEpisode.id)
     }
-  }, [visibleEpisodes])
+  }, [selectedEpisode, user])
 
-  const toggleEpisodeLike = async (episodeId, isLike) => {
+  const toggleEpisodeLike = async (isLike) => {
     if (!user) { router.push('/auth'); return }
+    if (!selectedEpisode) return
 
     const { data: existing } = await supabase
       .from('episode_likes')
       .select('id, is_like')
       .eq('user_id', user.id)
-      .eq('episode_id', episodeId)
+      .eq('episode_id', selectedEpisode.id)
       .maybeSingle()
 
     if (existing) {
       if (existing.is_like === isLike) {
         await supabase.from('episode_likes').delete().eq('id', existing.id)
+        setEpisodeLike(null)
       } else {
         await supabase.from('episode_likes').update({ is_like: isLike }).eq('id', existing.id)
+        setEpisodeLike(isLike)
       }
     } else {
       await supabase.from('episode_likes').insert({
         user_id: user.id,
-        episode_id: episodeId,
+        episode_id: selectedEpisode.id,
         is_like: isLike
       })
+      setEpisodeLike(isLike)
     }
-    loadEpisodeLikes(visibleEpisodes.map(e => e.id))
   }
 
   if (loading) {
@@ -349,6 +344,21 @@ export default function WatchSeries() {
         </div>
       </div>
 
+      {/* Episode like/dislike below video */}
+      <div className="container mx-auto px-4 pt-4">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => toggleEpisodeLike(true)} className={episodeLike === true ? 'border-green-500 text-green-500' : 'border-gray-700 text-gray-400'}>
+            <ThumbsUp className="w-4 h-4 ml-1" /> أعجبني
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => toggleEpisodeLike(false)} className={episodeLike === false ? 'border-red-500 text-red-500' : 'border-gray-700 text-gray-400'}>
+            <ThumbsDown className="w-4 h-4 ml-1" /> لم يعجبني
+          </Button>
+          {selectedEpisode && (
+            <span className="text-sm text-gray-500">{selectedEpisode.views || 0} مشاهدة</span>
+          )}
+        </div>
+      </div>
+
       <div className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
@@ -373,7 +383,7 @@ export default function WatchSeries() {
               </div>
             </div>
 
-            {/* Episodes list - show only 5 by default */}
+            {/* Scrollable episodes list */}
             <Card className="bg-gray-900 border-gray-800 mb-6">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -384,58 +394,27 @@ export default function WatchSeries() {
                 {allEpisodes.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">لا توجد حلقات متاحة بعد</p>
                 ) : (
-                  <>
-                    <div className="space-y-2">
-                      {visibleEpisodes.map((ep) => (
-                        <button
-                          key={ep.id}
-                          onClick={() => startEpisode(ep)}
-                          className={`w-full flex items-center gap-3 p-3 rounded-lg border transition text-right ${
-                            selectedEpisode?.id === ep.id
-                              ? 'border-red-600 bg-red-600/10'
-                              : 'border-gray-800 hover:border-gray-600 bg-gray-950'
-                          }`}
-                        >
-                          <Play className="w-4 h-4 shrink-0 text-red-600" />
-                          <div className="flex-1 text-right">
-                            <div className="font-semibold text-sm">
-                              الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleEpisodeLike(ep.id, true) }}
-                              className="text-gray-500 hover:text-green-500 transition"
-                            >
-                              <ThumbsUp className="w-3.5 h-3.5" />
-                              <span className="text-[10px] ml-0.5">{episodeLikes[ep.id]?.likes || 0}</span>
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleEpisodeLike(ep.id, false) }}
-                              className="text-gray-500 hover:text-red-500 transition"
-                            >
-                              <ThumbsDown className="w-3.5 h-3.5" />
-                              <span className="text-[10px] ml-0.5">{episodeLikes[ep.id]?.dislikes || 0}</span>
-                            </button>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-
-                    {allEpisodes.length > 5 && (
+                  <div className="max-h-[400px] overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+                    {allEpisodes.map((ep) => (
                       <button
-                        onClick={() => setShowAllEpisodes(!showAllEpisodes)}
-                        className="w-full mt-4 py-3 text-center text-red-500 hover:text-red-400 flex items-center justify-center gap-2 border border-gray-800 rounded-lg transition"
+                        key={ep.id}
+                        onClick={() => startEpisode(ep)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border transition text-right ${
+                          selectedEpisode?.id === ep.id
+                            ? 'border-red-600 bg-red-600/10'
+                            : 'border-gray-800 hover:border-gray-600 bg-gray-950'
+                        }`}
                       >
-                        {showAllEpisodes ? (
-                          <>عرض أقل <ChevronUp className="w-4 h-4" /></>
-                        ) : (
-                          <>عرض كل الحلقات ({allEpisodes.length}) <ChevronDown className="w-4 h-4" /></>
-                        )}
+                        <Play className="w-4 h-4 shrink-0 text-red-600" />
+                        <div className="flex-1 text-right">
+                          <div className="font-semibold text-sm">
+                            الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-500 shrink-0">{ep.views || 0} مشاهدة</span>
                       </button>
-                    )}
-                  </>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -454,7 +433,7 @@ export default function WatchSeries() {
               </CardContent>
             </Card>
 
-            {/* Comments */}
+            {/* Comments - scrollable, latest 10 */}
             <Card className="bg-gray-900 border-gray-800">
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -481,39 +460,77 @@ export default function WatchSeries() {
                 {comments.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">لا توجد تعليقات بعد</p>
                 ) : (
-                  <div className="space-y-4">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="border-b border-gray-800 pb-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold">
-                            {comment.user_profile?.display_name?.[0] || 'U'}
-                          </div>
-                          <div>
-                            <div className="font-semibold">{comment.user_profile?.display_name || 'مستخدم'}</div>
-                            <div className="text-xs text-gray-400">
-                              {new Date(comment.created_at).toLocaleDateString('ar')}
+                  <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+                    <div className="space-y-4">
+                      {comments.slice(0, 3).map((comment) => (
+                        <div key={comment.id} className="border-b border-gray-800 pb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold">
+                              {comment.user_profile?.display_name?.[0] || 'U'}
+                            </div>
+                            <div>
+                              <div className="font-semibold">{comment.user_profile?.display_name || 'مستخدم'}</div>
+                              <div className="text-xs text-gray-400">
+                                {new Date(comment.created_at).toLocaleDateString('ar')}
+                              </div>
                             </div>
                           </div>
+                          <p className="text-gray-300 mb-2">{comment.content}</p>
+                          <div className="flex items-center gap-4">
+                            <button
+                              onClick={() => toggleCommentLike(comment.id, true)}
+                              className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition"
+                            >
+                              <ThumbsUp className="w-4 h-4" />
+                              <span>{commentLikes[comment.id]?.likes || 0}</span>
+                            </button>
+                            <button
+                              onClick={() => toggleCommentLike(comment.id, false)}
+                              className="flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition"
+                            >
+                              <ThumbsDown className="w-4 h-4" />
+                              <span>{commentLikes[comment.id]?.dislikes || 0}</span>
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-gray-300 mb-2">{comment.content}</p>
-                        <div className="flex items-center gap-4">
-                          <button
-                            onClick={() => toggleCommentLike(comment.id, true)}
-                            className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition"
-                          >
-                            <ThumbsUp className="w-4 h-4" />
-                            <span>{commentLikes[comment.id]?.likes || 0}</span>
-                          </button>
-                          <button
-                            onClick={() => toggleCommentLike(comment.id, false)}
-                            className="flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition"
-                          >
-                            <ThumbsDown className="w-4 h-4" />
-                            <span>{commentLikes[comment.id]?.dislikes || 0}</span>
-                          </button>
-                        </div>
+                      ))}
+                    </div>
+                    {comments.length > 3 && (
+                      <div className="pt-4 space-y-4">
+                        {comments.slice(3).map((comment) => (
+                          <div key={comment.id} className="border-b border-gray-800 pb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold">
+                                {comment.user_profile?.display_name?.[0] || 'U'}
+                              </div>
+                              <div>
+                                <div className="font-semibold">{comment.user_profile?.display_name || 'مستخدم'}</div>
+                                <div className="text-xs text-gray-400">
+                                  {new Date(comment.created_at).toLocaleDateString('ar')}
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-gray-300 mb-2">{comment.content}</p>
+                            <div className="flex items-center gap-4">
+                              <button
+                                onClick={() => toggleCommentLike(comment.id, true)}
+                                className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition"
+                              >
+                                <ThumbsUp className="w-4 h-4" />
+                                <span>{commentLikes[comment.id]?.likes || 0}</span>
+                              </button>
+                              <button
+                                onClick={() => toggleCommentLike(comment.id, false)}
+                                className="flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition"
+                              >
+                                <ThumbsDown className="w-4 h-4" />
+                                <span>{commentLikes[comment.id]?.dislikes || 0}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </CardContent>

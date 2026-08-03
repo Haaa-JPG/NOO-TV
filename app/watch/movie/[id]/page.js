@@ -293,29 +293,57 @@ export default function WatchMovie() {
                 {comments.length === 0 ? (
                   <p className="text-gray-400 text-center py-8">لا توجد تعليقات بعد</p>
                 ) : (
-                  <div className="space-y-4">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="border-b border-gray-800 pb-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold">
-                            {comment.user_profile?.display_name?.[0] || 'U'}
+                  <div className="max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
+                    <div className="space-y-4">
+                      {comments.slice(0, 3).map((comment) => (
+                        <div key={comment.id} className="border-b border-gray-800 pb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold">
+                              {comment.user_profile?.display_name?.[0] || 'U'}
+                            </div>
+                            <div>
+                              <div className="font-semibold">{comment.user_profile?.display_name || 'مستخدم'}</div>
+                              <div className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString('ar')}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-semibold">{comment.user_profile?.display_name || 'مستخدم'}</div>
-                            <div className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString('ar')}</div>
+                          <p className="text-gray-300 mb-2">{comment.content}</p>
+                          <div className="flex items-center gap-4">
+                            <button onClick={() => toggleCommentLike(comment.id, true)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition">
+                              <ThumbsUp className="w-4 h-4" /><span>{commentLikes[comment.id]?.likes || 0}</span>
+                            </button>
+                            <button onClick={() => toggleCommentLike(comment.id, false)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition">
+                              <ThumbsDown className="w-4 h-4" /><span>{commentLikes[comment.id]?.dislikes || 0}</span>
+                            </button>
                           </div>
                         </div>
-                        <p className="text-gray-300 mb-2">{comment.content}</p>
-                        <div className="flex items-center gap-4">
-                          <button onClick={() => toggleCommentLike(comment.id, true)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition">
-                            <ThumbsUp className="w-4 h-4" /><span>{commentLikes[comment.id]?.likes || 0}</span>
-                          </button>
-                          <button onClick={() => toggleCommentLike(comment.id, false)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition">
-                            <ThumbsDown className="w-4 h-4" /><span>{commentLikes[comment.id]?.dislikes || 0}</span>
-                          </button>
-                        </div>
+                      ))}
+                    </div>
+                    {comments.length > 3 && (
+                      <div className="pt-4 space-y-4">
+                        {comments.slice(3).map((comment) => (
+                          <div key={comment.id} className="border-b border-gray-800 pb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-sm font-bold">
+                                {comment.user_profile?.display_name?.[0] || 'U'}
+                              </div>
+                              <div>
+                                <div className="font-semibold">{comment.user_profile?.display_name || 'مستخدم'}</div>
+                                <div className="text-xs text-gray-400">{new Date(comment.created_at).toLocaleDateString('ar')}</div>
+                              </div>
+                            </div>
+                            <p className="text-gray-300 mb-2">{comment.content}</p>
+                            <div className="flex items-center gap-4">
+                              <button onClick={() => toggleCommentLike(comment.id, true)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-green-500 transition">
+                                <ThumbsUp className="w-4 h-4" /><span>{commentLikes[comment.id]?.likes || 0}</span>
+                              </button>
+                              <button onClick={() => toggleCommentLike(comment.id, false)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition">
+                                <ThumbsDown className="w-4 h-4" /><span>{commentLikes[comment.id]?.dislikes || 0}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </CardContent>
