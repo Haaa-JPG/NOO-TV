@@ -1,24 +1,13 @@
 'use client'
 import { useState } from 'react'
 
-// Smart video player that supports any embed/video source:
-// - YouTube (watch, youtu.be, shorts, embed) -> converted to embed
-// - Vimeo -> converted to embed
-// - Dailymotion -> converted to embed
-// - Direct video files (mp4, webm, ogv, mov) -> HTML5 video tag
-// - Any other URL -> rendered inside an iframe
-
-// For unknown sources (third-party players with ads / server bars):
-// - a transparent click shield swallows clicks so nothing can redirect away
-// - a toggleable black strip hides the top bar & ad buttons inside the player
-// NOTE: sandbox is NOT used, because many players detect it and refuse to play
+// Smart video player with built-in ad/redirect protection.
+// Known providers (YouTube, Vimeo, etc.) render normally.
+// Unknown providers (anaplayer, etc.) get:
+//   - a transparent click-shield that blocks redirect-inducing clicks
+//   - a black top-bar strip that hides ad / server-select buttons
 
 function parseYouTube(url) {
-  // https://www.youtube.com/watch?v=ID
-  // https://youtu.be/ID
-  // https://www.youtube.com/embed/ID
-  // https://www.youtube.com/shorts/ID
-  // https://youtube.com/live/ID
   const patterns = [
     /(?:youtube\.com|youtu\.be)\/watch\?(?:.*&)?v=([\w-]{11})/,
     /youtu\.be\/([\w-]{11})/,
@@ -26,69 +15,55 @@ function parseYouTube(url) {
     /youtube\.com\/shorts\/([\w-]{11})/,
     /youtube\.com\/live\/([\w-]{11})/,
   ]
-  for (const pattern of patterns) {
-    const match = url.match(pattern)
-    if (match) return `https://www.youtube.com/embed/${match[1]}`
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return `https://www.youtube.com/embed/${m[1]}`
   }
   return null
 }
 
-function parseVimeo(url) {
-  const match = url.match(/(?:vimeo\.com)\/(?:video\/)?(\d+)/)
-  if (match) return `https://player.vimeo.com/video/${match[1]}`
-  return null
+function parseVimeo(u) {
+  const m = u.match(/vimeo\.com\/(?:video\/)?(\d+)/)
+  return m ? `https://player.vimeo.com/video/${m[1]}` : null
 }
 
-function parseDailymotion(url) {
-  const match = url.match(/(?:dailymotion\.com|dai\.ly)\/video\/([\w]+)/)
-  if (match) return `https://www.dailymotion.com/embed/video/${match[1]}`
-  return null
+function parseDailymotion(u) {
+  const m = u.match(/(?:dailymotion\.com|dai\.ly)\/video\/([\w]+)/)
+  return m ? `https://www.dailymotion.com/embed/video/${m[1]}` : null
 }
 
-function parseWistia(url) {
-  const match = url.match(/wistia\.(?:com|net)\/medias\/([\w]+)/)
-  if (match) return `https://fast.wistia.net/embed/iframe/${match[1]}`
-  return null
+function parseWistia(u) {
+  const m = u.match(/wistia\.(?:com|net)\/medias\/([\w]+)/)
+  return m ? `https://fast.wistia.net/embed/iframe/${m[1]}` : null
 }
 
 function isDirectVideo(url) {
   return /\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)
 }
 
-// Extract src from a full iframe embed code like:
-// <iframe src="https://..." ...></iframe>
 function extractIframeSrc(value) {
-  const match = value.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']+)["']/i)
-  return match ? match[1] : null
+  const m = value.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']+)["']/i)
+  return m ? m[1] : null
 }
 
-// Known safe providers don't need ad-blocking / click protection
-function isKnownProvider(embedUrl) {
+function isKnownProvider(url) {
   return (
-    embedUrl.includes('youtube.com') ||
-    embedUrl.includes('youtu.be') ||
-    embedUrl.includes('vimeo.com') ||
-    embedUrl.includes('dailymotion.com') ||
-    embedUrl.includes('wistia.com') ||
-    embedUrl.includes('wistia.net')
+    url.includes('youtube.com') ||
+    url.includes('youtu.be') ||
+    url.includes('vimeo.com') ||
+    url.includes('dailymotion.com') ||
+    url.includes('wistia.com') ||
+    url.includes('wistia.net')
   )
 }
 
-// Convert any supported URL into a working embed URL
 export function toEmbedUrl(url) {
   if (!url) return null
   const trimmed = url.trim()
-
-  // If the value is a full iframe tag, extract its src
   const iframeSrc = extractIframeSrc(trimmed)
   if (iframeSrc) return toEmbedUrl(iframeSrc)
-
-  // Normalize common URL typos (missing protocol)
   let normalized = trimmed
-  if (!/^https?:\/\//i.test(normalized)) {
-    normalized = `https://${normalized}`
-  }
-
+  if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`
   return (
     parseYouTube(normalized) ||
     parseVimeo(normalized) ||
@@ -99,8 +74,6 @@ export function toEmbedUrl(url) {
 }
 
 export default function VideoPlayer({ url, title = '', className = '' }) {
-  const [hideTopBar, setHideTopBar] = useState(true)
-  const [protection, setProtection] = useState(true)
   const embedUrl = toEmbedUrl(url)
 
   if (!embedUrl) {
@@ -111,84 +84,50 @@ export default function VideoPlayer({ url, title = '', className = '' }) {
     )
   }
 
-  // Direct video files -> native HTML5 player
   if (isDirectVideo(embedUrl)) {
     return (
-      <div className={`relative ${className}`}>
-        <video
-          src={embedUrl}
-          controls
-          autoPlay
-          playsInline
-          className="w-full h-full object-contain bg-black"
-          title={title}
-        />
+      <div className={className}>
+        <video src={embedUrl} controls autoPlay playsInline className="w-full h-full object-contain bg-black" title={title} />
       </div>
     )
   }
 
-  const protectedIframe = !isKnownProvider(embedUrl)
+  if (isKnownProvider(embedUrl)) {
+    return (
+      <div className={className}>
+        <iframe src={embedUrl} className="w-full h-full bg-black" title={title} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" />
+      </div>
+    )
+  }
 
-  // Everything else -> iframe
+  return <ProtectedPlayer embedUrl={embedUrl} title={title} className={className} />
+}
+
+function ProtectedPlayer({ embedUrl, title, className }) {
+  const [shield, setShield] = useState(true)
+
   return (
-    <div className={`relative ${className}`}>
-      <iframe
-        src={embedUrl}
-        className="w-full h-full bg-black"
-        title={title}
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+    <>
+      <iframe src={embedUrl} className={`w-full h-full bg-black ${className}`} title={title} allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share" />
 
-      {protectedIframe && (
-        <>
-          {/* Black strip that hides the top bar / ad buttons / server-select
-              buttons (OK, VK, VidSpeed, etc.) inside third-party players */}
-          <div
-            className={`absolute top-0 right-0 left-0 z-10 bg-black transition-all ${
-              hideTopBar ? 'h-14' : 'h-0 pointer-events-none'
-            }`}
-          />
-
-          {/* Transparent click shield: swallows all clicks so nothing can
-              redirect away or open popups. Video still plays normally. */}
-          <div
-            className={`absolute inset-0 z-20 ${
-              protection ? 'block' : 'pointer-events-none'
-            }`}
-          />
-
-          {/* Controls */}
-          <button
-            type="button"
-            onClick={() => setProtection((v) => !v)}
-            className={`absolute top-1 left-1 z-30 text-white/60 hover:text-white text-xs bg-black/50 rounded px-2 py-1 ${
-              protection ? 'bg-red-600/70 text-white' : ''
-            }`}
-          >
-            {protection ? 'الحماية: مفعلة' : 'الحماية: معطلة'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setHideTopBar(false)}
-            className={`absolute top-1 right-1 z-30 text-white/40 hover:text-white text-xs bg-black/50 rounded px-2 py-1 ${
-              hideTopBar ? '' : 'hidden'
-            }`}
-          >
-            عرض الشريط
-          </button>
-          <button
-            type="button"
-            onClick={() => setHideTopBar(true)}
-            className={`absolute bottom-1 left-1 z-30 text-white/40 hover:text-white text-xs bg-black/50 rounded px-2 py-1 ${
-              hideTopBar ? 'hidden' : ''
-            }`}
-          >
-            إخفاء الشريط
-          </button>
-        </>
+      {/* Click shield: blocks every click so nothing can open popups or redirect.
+          Positioned relative to the grandparent (the relative container).
+          The iframe still plays the video normally — clicks just don't reach it. */}
+      {shield && (
+        <div className="absolute inset-0 bg-transparent" style={{ zIndex: 40, cursor: 'default' }} />
       )}
-    </div>
+
+      {/* Floating control bar — sits above the click shield */}
+      <div className="absolute top-0 left-0 right-0 flex justify-end p-2" style={{ zIndex: 50, pointerEvents: 'none' }}>
+        <button
+          type="button"
+          onClick={() => setShield((s) => !s)}
+          style={{ pointerEvents: 'auto' }}
+          className={`text-xs rounded px-2 py-1 shadow ${shield ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
+        >
+          {shield ? 'الحماية مفعّلة' : 'الحماية معطّلة'}
+        </button>
+      </div>
+    </>
   )
 }
