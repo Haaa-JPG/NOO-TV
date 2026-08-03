@@ -1,26 +1,28 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 
-export async function middleware(req) {
-  const res = NextResponse.next()
-
-  // Create a Supabase client configured to use cookies
-  const supabase = createMiddlewareClient({ req, res })
-
-  // Refresh session if expired - required for Server Components
-  const { data: { session } } = await supabase.auth.getSession()
-
+export function middleware(req) {
   const url = req.nextUrl
-  const isProtected = url.pathname.startsWith('/admin') || url.pathname.startsWith('/user')
 
-  if (isProtected && !session) {
-    const redirectUrl = url.clone()
-    redirectUrl.pathname = '/auth'
-    redirectUrl.search = `?redirect=${encodeURIComponent(url.pathname)}`
-    return NextResponse.redirect(redirectUrl)
+  // Only protect these routes
+  const isProtected =
+    url.pathname.startsWith('/admin') ||
+    url.pathname.startsWith('/user')
+
+  if (!isProtected) return NextResponse.next()
+
+  // Check for any Supabase auth cookie (sb-<project-ref>-auth-token)
+  const hasCookie = req.cookies.getAll().some(
+    (c) => c.name.includes('-auth-token') || c.name.startsWith('sb-')
+  )
+
+  if (!hasCookie) {
+    const redirect = url.clone()
+    redirect.pathname = '/auth'
+    redirect.searchParams.set('redirect', url.pathname)
+    return NextResponse.redirect(redirect)
   }
 
-  return res
+  return NextResponse.next()
 }
 
 export const config = {
