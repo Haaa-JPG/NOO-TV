@@ -96,7 +96,7 @@ function HlsVideo({ url, title }) {
       controls
       autoPlay
       playsInline
-      className="w-full h-full object-contain bg-black"
+      className="absolute inset-0 w-full h-full object-contain bg-black"
       title={title}
     />
   )
@@ -107,7 +107,7 @@ export default function VideoPlayer({ url, title = '' }) {
 
   if (!result) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900">
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
         <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
       </div>
     )
@@ -124,7 +124,7 @@ export default function VideoPlayer({ url, title = '' }) {
         controls
         autoPlay
         playsInline
-        className="w-full h-full object-contain bg-black"
+        className="absolute inset-0 w-full h-full object-contain bg-black"
         title={title}
       />
     )
@@ -134,7 +134,7 @@ export default function VideoPlayer({ url, title = '' }) {
   return (
     <iframe
       src={result.embed}
-      className="w-full h-full bg-black"
+      className="absolute inset-0 w-full h-full bg-black"
       title={title}
       allowFullScreen
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
