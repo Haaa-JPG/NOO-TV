@@ -26,6 +26,7 @@ export default function WatchSeries() {
   const [newComment, setNewComment] = useState('')
   const [commentLikes, setCommentLikes] = useState({})
   const [episodeLike, setEpisodeLike] = useState(null)
+  const [episodeLikeCounts, setEpisodeLikeCounts] = useState({ likes: 0, dislikes: 0 })
 
   useEffect(() => {
     loadSeries()
@@ -255,7 +256,20 @@ export default function WatchSeries() {
   const allEpisodes = seasons.flatMap(s => s.episodes || [])
 
   const loadEpisodeLikeForEpisode = async (episodeId) => {
-    if (!user || !episodeId) return
+    if (!episodeId) {
+      setEpisodeLike(null)
+      setEpisodeLikeCounts({ likes: 0, dislikes: 0 })
+      return
+    }
+    const { data: allLikes } = await supabase
+      .from('episode_likes')
+      .select('is_like')
+      .eq('episode_id', episodeId)
+    let likes = 0, dislikes = 0
+    ;(allLikes || []).forEach(l => { if (l.is_like) likes++; else dislikes++ })
+    setEpisodeLikeCounts({ likes, dislikes })
+
+    if (!user) { setEpisodeLike(null); return }
     const { data } = await supabase
       .from('episode_likes')
       .select('is_like')
@@ -298,6 +312,7 @@ export default function WatchSeries() {
       })
       setEpisodeLike(isLike)
     }
+    loadEpisodeLikeForEpisode(selectedEpisode.id)
   }
 
   if (loading) {
@@ -347,12 +362,14 @@ export default function WatchSeries() {
       {/* Episode like/dislike below video */}
       <div className="container mx-auto px-4 pt-4">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => toggleEpisodeLike(true)} className={episodeLike === true ? 'border-green-500 text-green-500' : 'border-gray-700 text-gray-400'}>
-            <ThumbsUp className="w-4 h-4 ml-1" /> أعجبني
+          <Button variant="outline" size="icon" onClick={() => toggleEpisodeLike(true)} className={episodeLike === true ? 'border-green-500 text-green-500' : 'border-gray-700 text-gray-400'}>
+            <ThumbsUp className="w-4 h-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => toggleEpisodeLike(false)} className={episodeLike === false ? 'border-red-500 text-red-500' : 'border-gray-700 text-gray-400'}>
-            <ThumbsDown className="w-4 h-4 ml-1" /> لم يعجبني
+          <span className="text-sm text-gray-400">{episodeLikeCounts.likes}</span>
+          <Button variant="outline" size="icon" onClick={() => toggleEpisodeLike(false)} className={episodeLike === false ? 'border-red-500 text-red-500' : 'border-gray-700 text-gray-400'}>
+            <ThumbsDown className="w-4 h-4" />
           </Button>
+          <span className="text-sm text-gray-400">{episodeLikeCounts.dislikes}</span>
           {selectedEpisode && (
             <span className="text-sm text-gray-500">{selectedEpisode.views || 0} مشاهدة</span>
           )}
