@@ -134,6 +134,14 @@ function MoviesContent() {
                     {movie.quality && (
                       <Badge className="absolute top-2 right-2 bg-red-600">{movie.quality}</Badge>
                     )}
+                    {/* Views Badge */}
+                    <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded text-xs flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>{movie.views || 0}</span>
+                    </div>
                   </div>
                   <CardContent className="p-3">
                     <h3 className="font-semibold truncate">{movie.title}</h3>

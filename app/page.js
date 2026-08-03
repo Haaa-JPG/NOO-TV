@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Play, Star, TrendingUp, Film, Tv, Menu, User, LogOut, Heart, Clock } from 'lucide-react'
+import { Search, Play, Star, TrendingUp, Film, Tv, Menu, User, LogOut, Heart, Clock, ListVideo } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
@@ -54,7 +54,7 @@ export default function Home() {
     
     if (moviesData) setMovies(moviesData)
 
-    // Load series
+    // Load series with episode counts
     const { data: seriesData } = await supabase
       .from('series')
       .select('*')
@@ -62,7 +62,19 @@ export default function Home() {
       .order('display_order', { ascending: true })
       .limit(12)
     
-    if (seriesData) setSeries(seriesData)
+    if (seriesData) {
+      // Fetch episode counts for each series
+      const seriesWithCounts = await Promise.all(
+        seriesData.map(async (show) => {
+          const { count } = await supabase
+            .from('episodes')
+            .select('*', { count: 'exact', head: true })
+            .eq('series_id', show.id)
+          return { ...show, episode_count: count || 0 }
+        })
+      )
+      setSeries(seriesWithCounts)
+    }
 
     // Load categories
     const { data: categoriesData } = await supabase
@@ -372,6 +384,14 @@ export default function Home() {
                           {movie.quality}
                         </Badge>
                       )}
+                      {/* Views Badge */}
+                      <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded text-xs flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span>{movie.views || 0}</span>
+                      </div>
                     </div>
                     <CardContent className="p-3">
                       <h3 className="font-semibold truncate">{movie.title}</h3>
@@ -414,6 +434,19 @@ export default function Home() {
                           {show.total_seasons} مواسم
                         </Badge>
                       )}
+                      {/* Episodes Count Badge */}
+                      <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded text-xs flex items-center gap-1">
+                        <ListVideo className="w-3 h-3" />
+                        <span>{show.episode_count || 0} حلقة</span>
+                      </div>
+                      {/* Views Badge */}
+                      <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded text-xs flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span>{show.views || 0}</span>
+                      </div>
                     </div>
                     <CardContent className="p-3">
                       <h3 className="font-semibold truncate">{show.title}</h3>

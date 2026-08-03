@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Play, Star, Tv } from 'lucide-react'
+import { Play, Star, Tv, ListVideo } from 'lucide-react'
 import Link from 'next/link'
 
 function SeriesContent() {
@@ -43,7 +43,22 @@ function SeriesContent() {
     }
 
     const { data } = await query.order('created_at', { ascending: false }).limit(60)
-    setSeries(data || [])
+    
+    if (data) {
+      // Fetch episode counts for each series
+      const seriesWithCounts = await Promise.all(
+        data.map(async (show) => {
+          const { count } = await supabase
+            .from('episodes')
+            .select('*', { count: 'exact', head: true })
+            .eq('series_id', show.id)
+          return { ...show, episode_count: count || 0 }
+        })
+      )
+      setSeries(seriesWithCounts)
+    } else {
+      setSeries([])
+    }
     setLoading(false)
   }
 
@@ -104,6 +119,19 @@ function SeriesContent() {
                         {show.total_seasons} مواسم
                       </Badge>
                     )}
+                    {/* Episodes Count Badge */}
+                    <div className="absolute bottom-2 left-2 bg-black/70 px-2 py-1 rounded text-xs flex items-center gap-1">
+                      <ListVideo className="w-3 h-3" />
+                      <span>{show.episode_count || 0} حلقة</span>
+                    </div>
+                    {/* Views Badge */}
+                    <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded text-xs flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>{show.views || 0}</span>
+                    </div>
                   </div>
                   <CardContent className="p-3">
                     <h3 className="font-semibold truncate">{show.title}</h3>
