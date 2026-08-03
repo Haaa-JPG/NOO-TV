@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown } from 'lucide-react'
+import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar } from 'lucide-react'
 import Link from 'next/link'
 
 function sanitize(str) {
@@ -46,7 +46,20 @@ const emptySeriesForm = () => ({
   is_dubbed: false,
   is_active: true,
   display_order: 0,
+  release_day: '',
 })
+
+const DAYS_OF_WEEK = [
+  { value: 'السبت', label: 'السبت' },
+  { value: 'الأحد', label: 'الأحد' },
+  { value: 'الاثنين', label: 'الاثنين' },
+  { value: 'الثلاثاء', label: 'الثلاثاء' },
+  { value: 'الأربعاء', label: 'الأربعاء' },
+  { value: 'الخميس', label: 'الخميس' },
+  { value: 'الجمعة', label: 'الجمعة' },
+]
+
+const DAY_ORDER = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
 
 const emptyCategoryForm = () => ({
   name: '',
@@ -524,6 +537,9 @@ export default function AdminPanel() {
             </TabsTrigger>
             <TabsTrigger value="complaints" className="data-[state=active]:bg-red-600">
               <Ban className="w-4 h-4 ml-2" /> الشكاوى ({complaints.filter(c => !c.is_read).length})
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="data-[state=active]:bg-red-600">
+              <Calendar className="w-4 h-4 ml-2" /> الجدول الزمني
             </TabsTrigger>
           </TabsList>
 
@@ -1132,6 +1148,24 @@ export default function AdminPanel() {
                           </label>
                         </div>
 
+                        <div>
+                          <Label>يوم نزول الحلقات</Label>
+                          <Select
+                            value={seriesForm.release_day || 'none'}
+                            onValueChange={(v) => setSeriesForm({ ...seriesForm, release_day: v === 'none' ? '' : v })}
+                          >
+                            <SelectTrigger className="bg-black border-gray-700">
+                              <SelectValue placeholder="اختر يوم النزول" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">بدون تحديد</SelectItem>
+                              {DAYS_OF_WEEK.map((day) => (
+                                <SelectItem key={day.value} value={day.value}>{day.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         <div className="flex gap-2">
                           <Button type="submit" className="bg-red-600 hover:bg-red-700">
                             {editingSeries ? 'تحديث' : 'إضافة'}
@@ -1155,12 +1189,13 @@ export default function AdminPanel() {
                             alt={show.title}
                             className="w-16 h-24 object-cover rounded"
                           />
-                          <div>
-                            <h3 className="font-bold text-lg">{show.title}</h3>
-                            <p className="text-sm text-gray-400">
-                              {show.category} • {show.total_seasons} مواسم
-                            </p>
-                          </div>
+                        <div>
+                          <h3 className="font-bold text-lg">{show.title}</h3>
+                          <p className="text-sm text-gray-400">
+                            {show.category} • {show.total_seasons} مواسم
+                            {show.release_day && <span className="mr-2 text-red-400">• {show.release_day}</span>}
+                          </p>
+                        </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
@@ -1399,6 +1434,87 @@ export default function AdminPanel() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* ================= SCHEDULE ================= */}
+          <TabsContent value="schedule">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
+                <Calendar className="w-5 h-5 text-red-600" />
+                جدول نزول الحلقات الأسبوعي
+              </h2>
+              <p className="text-sm text-gray-400">مسلسلاتك مرتبة حسب يوم نزول الحلقات</p>
+            </div>
+            {(() => {
+              const seriesWithDay = series.filter(s => s.release_day)
+              if (seriesWithDay.length === 0) {
+                return (
+                  <div className="text-center py-10">
+                    <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <h3 className="text-xl text-gray-400 mb-2">لم تُحدد أيام نزول بعد</h3>
+                    <p className="text-sm text-gray-500">أضف "يوم نزول الحلقات" لكل مسلسل من تبويب المسلسلات</p>
+                  </div>
+                )
+              }
+              const jsDayToArabic = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+              const todayArabic = jsDayToArabic[new Date().getDay()]
+              return (
+                <div className="space-y-4">
+                  {DAY_ORDER.map((day) => {
+                    const daySeries = seriesWithDay.filter(s => s.release_day === day)
+                    if (daySeries.length === 0) return null
+                    const isToday = day === todayArabic
+                    return (
+                      <Card key={day} className={`bg-gray-900 border-gray-800 ${isToday ? 'border-2 border-red-600 shadow-lg shadow-red-600/20' : ''}`}>
+                        <CardHeader className="pb-3">
+                          <CardTitle className={`flex items-center gap-2 ${isToday ? 'text-red-500' : 'text-white'}`}>
+                            <Calendar className="w-4 h-4" />
+                            {day}
+                            {isToday && (
+                              <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full">اليوم</span>
+                            )}
+                            <span className="text-sm text-gray-400 font-normal mr-auto">{daySeries.length} مسلسلات</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid gap-2">
+                            {daySeries.map((show) => (
+                              <div key={show.id} className="flex items-center gap-3 p-3 bg-gray-950 border border-gray-800 rounded-lg">
+                                <img
+                                  src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=60'}
+                                  alt={show.title}
+                                  className="w-12 h-16 object-cover rounded"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-bold text-sm truncate">{show.title}</h4>
+                                  <p className="text-xs text-gray-400">{show.category}</p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {show.is_translated && (
+                                    <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">مترجم</span>
+                                  )}
+                                  {show.is_dubbed && (
+                                    <span className="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">مدبلج</span>
+                                  )}
+                                  {!show.is_active && (
+                                    <span className="text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded">مخفي</span>
+                                  )}
+                                  <Link href={`/watch/series/${show.id}`}>
+                                    <Button size="sm" variant="ghost" className="h-8">
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </Link>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </TabsContent>
         </Tabs>
       </div>

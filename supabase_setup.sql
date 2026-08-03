@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS public.series (
   banner TEXT,
   average_rating DECIMAL(2,1) DEFAULT 0.0,
   views INTEGER DEFAULT 0,
+  is_translated BOOLEAN DEFAULT FALSE,
+  is_dubbed BOOLEAN DEFAULT FALSE,
+  release_day TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   display_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -534,6 +537,7 @@ CREATE INDEX IF NOT EXISTS idx_movies_active ON public.movies(is_active);
 CREATE INDEX IF NOT EXISTS idx_movies_views ON public.movies(views DESC);
 CREATE INDEX IF NOT EXISTS idx_series_active ON public.series(is_active);
 CREATE INDEX IF NOT EXISTS idx_series_category ON public.series(category);
+CREATE INDEX IF NOT EXISTS idx_series_release_day ON public.series(release_day);
 CREATE INDEX IF NOT EXISTS idx_seasons_series ON public.seasons(series_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_season ON public.episodes(season_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_active ON public.episodes(is_active);
