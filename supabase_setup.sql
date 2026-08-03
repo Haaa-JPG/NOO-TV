@@ -225,6 +225,34 @@ AS $$
   );
 $$;
 
+-- View count functions (SECURITY DEFINER to bypass RLS)
+CREATE OR REPLACE FUNCTION public.increment_movie_views(movie_id UUID)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.movies SET views = COALESCE(views, 0) + 1 WHERE id = movie_id;
+$$;
+
+CREATE OR REPLACE FUNCTION public.increment_series_views(sid UUID)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.series SET views = COALESCE(views, 0) + 1 WHERE id = sid;
+$$;
+
+CREATE OR REPLACE FUNCTION public.increment_episode_views(ep_id UUID)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.episodes SET views = COALESCE(views, 0) + 1 WHERE id = ep_id;
+$$;
+
 -- Auto-create public.users profile when a new auth user signs up
 -- Also auto-confirms email so users can sign in immediately
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -333,6 +361,9 @@ CREATE POLICY "Admins can insert movies" ON public.movies
 CREATE POLICY "Admins can update movies" ON public.movies
   FOR UPDATE USING (public.is_admin());
 
+CREATE POLICY "Anyone can increment movie views" ON public.movies
+  FOR UPDATE USING (true);
+
 CREATE POLICY "Admins can delete movies" ON public.movies
   FOR DELETE USING (public.is_admin());
 
@@ -348,6 +379,9 @@ CREATE POLICY "Admins can insert series" ON public.series
 
 CREATE POLICY "Admins can update series" ON public.series
   FOR UPDATE USING (public.is_admin());
+
+CREATE POLICY "Anyone can increment series views" ON public.series
+  FOR UPDATE USING (true);
 
 CREATE POLICY "Admins can delete series" ON public.series
   FOR DELETE USING (public.is_admin());
@@ -380,6 +414,9 @@ CREATE POLICY "Admins can insert episodes" ON public.episodes
 
 CREATE POLICY "Admins can update episodes" ON public.episodes
   FOR UPDATE USING (public.is_admin());
+
+CREATE POLICY "Anyone can increment episode views" ON public.episodes
+  FOR UPDATE USING (true);
 
 CREATE POLICY "Admins can delete episodes" ON public.episodes
   FOR DELETE USING (public.is_admin());

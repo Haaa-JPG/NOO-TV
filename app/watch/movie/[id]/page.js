@@ -57,11 +57,8 @@ export default function WatchMovie() {
 
     if (data) {
       setMovie(data)
-      // Update view count
-      await supabase
-        .from('movies')
-        .update({ views: (data.views || 0) + 1 })
-        .eq('id', params.id)
+      // Update view count via RPC (bypasses RLS)
+      await supabase.rpc('increment_movie_views', { movie_id: params.id })
       
       loadComments(params.id)
     }

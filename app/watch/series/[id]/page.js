@@ -50,6 +50,8 @@ export default function WatchSeries() {
       setShow(data)
       await loadSeasons(data.id)
       loadComments(data.id)
+      // Increment series views via RPC
+      await supabase.rpc('increment_series_views', { sid: params.id })
     }
     setLoading(false)
   }
@@ -212,9 +214,7 @@ export default function WatchSeries() {
     }
 
     await supabase
-      .from('episodes')
-      .update({ views: (episode.views || 0) + 1 })
-      .eq('id', episode.id)
+      .rpc('increment_episode_views', { ep_id: episode.id })
   }
 
   const totalEpisodes = () =>
