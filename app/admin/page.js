@@ -77,6 +77,7 @@ export default function AdminPanel() {
   const [showEpisodeForm, setShowEpisodeForm] = useState(false)
   const [episodeForm, setEpisodeForm] = useState({ episode_number: 1, title: '', embed_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
   const [editingEpisode, setEditingEpisode] = useState(null)
+  const [episodeDefaults, setEpisodeDefaults] = useState({ title: '', thumbnail: '', duration: 0 })
 
   // Categories
   const [categories, setCategories] = useState([])
@@ -338,23 +339,38 @@ export default function AdminPanel() {
     e.preventDefault()
     if (!expandedSeason) return
     try {
+      const dataToSave = {
+        ...episodeForm,
+        title: episodeForm.title || episodeDefaults.title ? `${episodeDefaults.title} ${episodeForm.title || ''}`.trim() : episodeForm.title,
+        thumbnail: episodeForm.thumbnail || episodeDefaults.thumbnail,
+        duration: episodeForm.duration || episodeDefaults.duration,
+      }
       if (editingEpisode) {
         const { error } = await supabase
           .from('episodes')
-          .update(episodeForm)
+          .update(dataToSave)
           .eq('id', editingEpisode)
         if (error) throw error
         toast({ title: 'تم تحديث الحلقة' })
+        setShowEpisodeForm(false)
+        setEditingEpisode(null)
       } else {
         const { error } = await supabase
           .from('episodes')
-          .insert([{ ...episodeForm, season_id: expandedSeason.id }])
+          .insert([{ ...dataToSave, season_id: expandedSeason.id }])
         if (error) throw error
         toast({ title: 'تم إضافة الحلقة' })
+        const nextNum = (episodeForm.episode_number || 0) + 1
+        setEpisodeForm({
+          episode_number: nextNum,
+          title: episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${nextNum}` : '',
+          embed_url: '',
+          thumbnail: episodeDefaults.thumbnail,
+          duration: episodeDefaults.duration,
+          display_order: nextNum,
+          is_active: true
+        })
       }
-      setShowEpisodeForm(false)
-      setEditingEpisode(null)
-      setEpisodeForm({ episode_number: (expandedSeason.episodes?.length || 0) + 1, title: '', embed_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
       await toggleSeason(expandedSeason.id)
     } catch (error) {
       toast({ title: 'حدث خطأ', description: error.message, variant: 'destructive' })
@@ -827,7 +843,16 @@ export default function AdminPanel() {
                                 size="sm"
                                 onClick={() => {
                                   setEditingEpisode(null)
-                                  setEpisodeForm({ episode_number: (expandedSeason?.episodes?.length || 0) + 1, title: '', embed_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
+                                  const nextNum = (expandedSeason?.episodes?.length || 0) + 1
+                                  setEpisodeForm({
+                                    episode_number: nextNum,
+                                    title: episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${nextNum}` : '',
+                                    embed_url: '',
+                                    thumbnail: episodeDefaults.thumbnail,
+                                    duration: episodeDefaults.duration,
+                                    display_order: nextNum,
+                                    is_active: true
+                                  })
                                   setShowEpisodeForm(!showEpisodeForm)
                                 }}
                                 className="bg-blue-600 hover:bg-blue-700 text-white mb-2"
@@ -838,6 +863,39 @@ export default function AdminPanel() {
                               {showEpisodeForm && (
                                 <Card className="bg-gray-800 border-gray-700 mb-3">
                                   <CardContent className="pt-4">
+                                    {/* Defaults Section */}
+                                    <div className="bg-gray-900 rounded-lg p-3 mb-4 border border-gray-600">
+                                      <p className="text-sm text-gray-400 mb-2 font-bold">القيم الثابتة (تُطبَّق على كل حلقة جديدة)</p>
+                                      <div className="grid md:grid-cols-3 gap-3">
+                                        <div>
+                                          <Label className="text-xs">اسم الحلقات (تلقائي)</Label>
+                                          <Input
+                                            value={episodeDefaults.title}
+                                            onChange={(e) => setEpisodeDefaults({ ...episodeDefaults, title: e.target.value })}
+                                            className="bg-black border-gray-700 h-8 text-sm"
+                                            placeholder="مثال: اسم المسلسل"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs">صورة الحلقات (تلقائية)</Label>
+                                          <Input
+                                            value={episodeDefaults.thumbnail}
+                                            onChange={(e) => setEpisodeDefaults({ ...episodeDefaults, thumbnail: e.target.value })}
+                                            className="bg-black border-gray-700 h-8 text-sm"
+                                            placeholder="رابط صورة واحدة لكل الحلقات"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs">المدة الثابتة</Label>
+                                          <Input
+                                            type="number"
+                                            value={episodeDefaults.duration}
+                                            onChange={(e) => setEpisodeDefaults({ ...episodeDefaults, duration: parseInt(e.target.value) || 0 })}
+                                            className="bg-black border-gray-700 h-8 text-sm"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
                                     <form onSubmit={handleEpisodeSubmit} className="space-y-3">
                                       <div className="grid md:grid-cols-2 gap-3">
                                         <div>
@@ -845,7 +903,10 @@ export default function AdminPanel() {
                                           <Input
                                             type="number"
                                             value={episodeForm.episode_number}
-                                            onChange={(e) => setEpisodeForm({ ...episodeForm, episode_number: parseInt(e.target.value) || 1 })}
+                                            onChange={(e) => {
+                                              const num = parseInt(e.target.value) || 1
+                                              setEpisodeForm({ ...episodeForm, episode_number: num, display_order: num, title: episodeDefaults.title ? `${episodeDefaults.title} - الحلقة ${num}` : episodeForm.title })
+                                            }}
                                             className="bg-black border-gray-700"
                                             required
                                           />
