@@ -24,6 +24,7 @@ export default function WatchMovie() {
   const [newComment, setNewComment] = useState('')
   const [commentLikes, setCommentLikes] = useState({})
   const [movieLike, setMovieLike] = useState(null)
+  const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
     loadMovie()
@@ -257,7 +258,12 @@ export default function WatchMovie() {
                   </div>
                   <span className="text-gray-400">{movie.views || 0} مشاهدة</span>
                 </div>
-                <p className="text-gray-300 leading-relaxed">{movie.description}</p>
+                <p className={`text-gray-300 leading-relaxed ${!showFullDesc ? 'line-clamp-2 sm:line-clamp-none' : ''}`}>{movie.description}</p>
+                {movie.description && movie.description.length > 100 && (
+                  <button onClick={() => setShowFullDesc(!showFullDesc)} className="text-red-500 hover:text-red-400 text-sm mt-1 sm:hidden">
+                    {showFullDesc ? 'عرض أقل' : 'عرض المزيد'}
+                  </button>
+                )}
               </div>
             </div>
 

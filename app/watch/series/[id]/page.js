@@ -27,6 +27,7 @@ export default function WatchSeries() {
   const [commentLikes, setCommentLikes] = useState({})
   const [episodeLike, setEpisodeLike] = useState(null)
   const [episodeLikeCounts, setEpisodeLikeCounts] = useState({ likes: 0, dislikes: 0 })
+  const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
     loadSeries()
@@ -426,7 +427,12 @@ export default function WatchSeries() {
                   </div>
                   <span className="text-gray-400">{show.views || 0} مشاهدة</span>
                 </div>
-                <p className="text-gray-300 leading-relaxed">{show.description}</p>
+                <p className={`text-gray-300 leading-relaxed ${!showFullDesc ? 'line-clamp-2 sm:line-clamp-none' : ''}`}>{show.description}</p>
+                {show.description && show.description.length > 100 && (
+                  <button onClick={() => setShowFullDesc(!showFullDesc)} className="text-red-500 hover:text-red-400 text-sm mt-1 sm:hidden">
+                    {showFullDesc ? 'عرض أقل' : 'عرض المزيد'}
+                  </button>
+                )}
               </div>
             </div>
 
