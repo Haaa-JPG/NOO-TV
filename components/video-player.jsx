@@ -56,9 +56,12 @@ function shouldProxy(url) {
   return false
 }
 
-function proxyUrl(url) {
+function proxyUrl(url, contentId, contentType) {
   if (!url) return url
-  return `/api/proxy?url=${encodeURIComponent(url)}`
+  const params = new URLSearchParams({ url })
+  if (contentId) params.set('id', contentId)
+  if (contentType) params.set('type', contentType)
+  return `/api/proxy?${params.toString()}`
 }
 
 function extractIframeSrc(value) {
@@ -119,7 +122,7 @@ function HlsVideo({ url, title }) {
   )
 }
 
-export default function VideoPlayer({ url, title = '' }) {
+export default function VideoPlayer({ url, title = '', contentId, contentType }) {
   const result = toEmbedUrl(url)
 
   if (!result) {
@@ -131,12 +134,12 @@ export default function VideoPlayer({ url, title = '' }) {
   }
 
   if (result.type === 'hls') {
-    const src = shouldProxy(result.embed) ? proxyUrl(result.embed) : result.embed
+    const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
     return <HlsVideo url={src} title={title} />
   }
 
   if (result.type === 'video') {
-    const src = shouldProxy(result.embed) ? proxyUrl(result.embed) : result.embed
+    const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
     return (
       <video
         src={src}
