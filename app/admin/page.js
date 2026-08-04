@@ -510,7 +510,7 @@ export default function AdminPanel() {
       const episodes = []
       let sortOrder = maxEpisode + 1
       for (let i = bulkFrom; i <= bulkTo; i++) {
-        const epTitle = seriesTitle ? `${seriesTitle} - الحلقة ${sortOrder}` : `الحلقة ${sortOrder}`
+        const epTitle = seriesTitle || `الحلقة ${sortOrder}`
         episodes.push({
           season_id: expandedSeason.id,
           episode_number: sortOrder,
