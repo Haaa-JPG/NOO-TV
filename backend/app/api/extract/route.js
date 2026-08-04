@@ -20,6 +20,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+let browserLock = Promise.resolve()
+
 function cleanupCache() {
   const now = Date.now()
   for (const [key, val] of cache) {
@@ -27,32 +29,26 @@ function cleanupCache() {
   }
 }
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url)
-  const sourceUrl = searchParams.get('url')
+function enqueue(task) {
+  const result = browserLock.then(task, task)
+  browserLock = result.then(() => {}, () => {})
+  return result
+}
 
-  if (!sourceUrl) {
-    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400, headers: CORS_HEADERS })
-  }
-
-  try { new URL(sourceUrl) } catch {
-    return NextResponse.json({ error: 'Invalid URL' }, { status: 400, headers: CORS_HEADERS })
-  }
-
+async function extractM3u8(sourceUrl) {
   cleanupCache()
 
   const cached = cache.get(sourceUrl)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json({ m3u8: cached.m3u8, cached: true }, { headers: CORS_HEADERS })
+    return { m3u8: cached.m3u8, cached: true }
   }
 
-  let browser = null
-  try {
-    browser = await chromium.launch({
-      headless: true,
-      args: BROWSER_ARGS,
-    })
+  const browser = await chromium.launch({
+    headless: true,
+    args: BROWSER_ARGS,
+  })
 
+  try {
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     })
@@ -62,8 +58,8 @@ export async function GET(request) {
 
     const m3u8Promise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('Timeout: m3u8 link not found within 30 seconds'))
-      }, 30000)
+        reject(new Error('Timeout: m3u8 link not found within 45 seconds'))
+      }, 45000)
 
       page.on('response', (response) => {
         const url = response.url()
@@ -75,7 +71,7 @@ export async function GET(request) {
       })
     })
 
-    await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 20000 })
+    await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 25000 })
 
     await page.waitForTimeout(3000)
 
@@ -95,13 +91,31 @@ export async function GET(request) {
 
     cache.set(sourceUrl, { m3u8: finalUrl, expiresAt: Date.now() + TTL })
 
-    return NextResponse.json({ m3u8: finalUrl, cached: false }, { headers: CORS_HEADERS })
+    return { m3u8: finalUrl, cached: false }
+  } finally {
+    try { await page.close() } catch {}
+    try { await context.close() } catch {}
+    try { await browser.close() } catch {}
+  }
+}
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url)
+  const sourceUrl = searchParams.get('url')
+
+  if (!sourceUrl) {
+    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400, headers: CORS_HEADERS })
+  }
+
+  try { new URL(sourceUrl) } catch {
+    return NextResponse.json({ error: 'Invalid URL' }, { status: 400, headers: CORS_HEADERS })
+  }
+
+  try {
+    const result = await enqueue(() => extractM3u8(sourceUrl))
+    return NextResponse.json(result, { headers: CORS_HEADERS })
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
-  } finally {
-    if (browser) {
-      try { await browser.close() } catch {}
-    }
   }
 }
 

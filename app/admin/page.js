@@ -484,6 +484,15 @@ export default function AdminPanel() {
 
     setBulkGenerating(true)
     try {
+      const { data: existingEpisodes } = await supabase
+        .from('episodes')
+        .select('episode_number')
+        .eq('season_id', expandedSeason.id)
+        .order('episode_number', { ascending: false })
+        .limit(1)
+
+      const maxEpisode = existingEpisodes?.length > 0 ? existingEpisodes[0].episode_number : 0
+
       const url = bulkSourceUrl.trim()
       const lastNumberMatch = url.match(/(\d+)(?!.*\d)/)
       if (!lastNumberMatch) {
@@ -496,25 +505,30 @@ export default function AdminPanel() {
       const prefix = url.substring(0, url.lastIndexOf(lastNumberMatch[0]))
       const suffix = url.substring(url.lastIndexOf(lastNumberMatch[0]) + lastNumberMatch[0].length)
 
+      const seriesTitle = manageSeries?.title || ''
+
       const episodes = []
+      let sortOrder = maxEpisode + 1
       for (let i = bulkFrom; i <= bulkTo; i++) {
+        const epTitle = seriesTitle ? `${seriesTitle} - الحلقة ${sortOrder}` : `الحلقة ${sortOrder}`
         episodes.push({
           season_id: expandedSeason.id,
-          episode_number: i,
-          title: `الحلقة ${i}`,
+          episode_number: sortOrder,
+          title: epTitle,
           embed_url: `${prefix}${i}${suffix}`,
           thumbnail: episodeDefaults.thumbnail || '',
           duration: episodeDefaults.duration || 0,
-          display_order: i,
+          display_order: sortOrder,
           is_active: true,
           last_refreshed: new Date().toISOString(),
         })
+        sortOrder++
       }
 
       const { error } = await supabase.from('episodes').insert(episodes)
       if (error) throw error
 
-      toast({ title: `تم توليد ${episodes.length} حلقة بنجاح` })
+      toast({ title: `تم توليد ${episodes.length} حلقة بنجاح (من ${maxEpisode + 1} إلى ${sortOrder - 1})` })
       await toggleSeason(expandedSeason.id)
       setBulkSourceUrl('')
       setBulkFrom(1)
