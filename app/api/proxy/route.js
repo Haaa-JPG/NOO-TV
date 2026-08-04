@@ -104,8 +104,73 @@ export async function OPTIONS() {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
     },
   })
+}
+
+const EXTRACT_SOURCES = [
+  {
+    pattern: /z\.3isk\.news|qrmzi\.tv|3isk/,
+    name: '3isk',
+    extract: (html) => {
+      const dataWatchMatch = html.match(/data-watch="([^"]+)"/)
+      if (dataWatchMatch) return { playerUrl: dataWatchMatch[1], method: 'data-watch' }
+
+      const iframeMatch = html.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']*(?:anaplayer|play\.php|embed)[^"']*)["']/i)
+      if (iframeMatch) return { playerUrl: iframeMatch[1], method: 'iframe' }
+
+      const scriptMatch = html.match(/(?:src|href)\s*=\s*["']([^"']*(?:play\.php|anaplayer)[^"']*)["']/i)
+      if (scriptMatch) return { playerUrl: scriptMatch[1], method: 'script' }
+
+      return null
+    },
+  },
+]
+
+export async function POST(request) {
+  try {
+    const { url } = await request.json()
+
+    if (!url) {
+      return NextResponse.json({ error: 'Missing url' }, { status: 400 })
+    }
+
+    try { new URL(url) } catch {
+      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+    }
+
+    const matchedSource = EXTRACT_SOURCES.find(s => s.pattern.test(url))
+    if (!matchedSource) {
+      return NextResponse.json({ error: 'الموقع غير مدعوم حالياً' }, { status: 400 })
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Referer': new URL(url).origin,
+      },
+      redirect: 'follow',
+    })
+
+    if (!response.ok) {
+      return NextResponse.json({ error: `فشل الجلب: ${response.status}` }, { status: 502 })
+    }
+
+    const html = await response.text()
+    const result = matchedSource.extract(html)
+
+    if (!result) {
+      return NextResponse.json({ error: 'لم يتم العثور على رابط المشغل في الصفحة' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      playerUrl: result.playerUrl,
+      method: result.method,
+      source: matchedSource.name,
+    })
+  } catch (error) {
+    return NextResponse.json({ error: 'فشل الاستخراج', details: error.message }, { status: 500 })
+  }
 }
