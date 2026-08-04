@@ -23,18 +23,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 
 RUN npx playwright install --with-deps chromium
 
-RUN yarn build
+RUN npm run build
 
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 EXPOSE 3000
 
-CMD ["yarn", "start"]
+CMD ["sh", "-c", "npm start -- -p ${PORT:-3000}"]
