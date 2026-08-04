@@ -161,18 +161,32 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
 
   if (loading) {
     return (
-      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-3">
-        <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400 text-sm">جاري استخراج رابط البث...</p>
+      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-950 gap-4">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 border-4 border-red-600/20 rounded-full" />
+          <div className="absolute inset-0 border-4 border-transparent border-t-red-600 rounded-full animate-spin" />
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-white text-sm font-medium">جاري تجهيز سيرفر المشاهدة بأعلى جودة</p>
+          <p className="text-gray-400 text-xs">فضلاً انتظر ثوانٍ...</p>
+        </div>
+        <div className="w-48 h-1 bg-gray-800 rounded-full overflow-hidden mt-2">
+          <div className="h-full bg-red-600 rounded-full animate-pulse" style={{ width: '60%' }} />
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-2">
-        <p className="text-red-400 text-sm">فشل استخراج رابط البث</p>
-        <p className="text-gray-500 text-xs">{error}</p>
+      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-950 gap-3">
+        <div className="w-14 h-14 rounded-full bg-red-600/10 flex items-center justify-center">
+          <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        </div>
+        <p className="text-white text-sm font-medium">عذراً، السيرفر مشغول حالياً</p>
+        <p className="text-gray-400 text-xs">يرجى إعادة المحاولة بعد لحظات</p>
       </div>
     )
   }

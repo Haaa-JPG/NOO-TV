@@ -20,8 +20,6 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
-let browserLock = Promise.resolve()
-
 function cleanupCache() {
   const now = Date.now()
   for (const [key, val] of cache) {
@@ -29,26 +27,32 @@ function cleanupCache() {
   }
 }
 
-function enqueue(task) {
-  const result = browserLock.then(task, task)
-  browserLock = result.then(() => {}, () => {})
-  return result
-}
+export async function GET(request) {
+  const { searchParams } = new URL(request.url)
+  const sourceUrl = searchParams.get('url')
 
-async function extractM3u8(sourceUrl) {
+  if (!sourceUrl) {
+    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400, headers: CORS_HEADERS })
+  }
+
+  try { new URL(sourceUrl) } catch {
+    return NextResponse.json({ error: 'Invalid URL' }, { status: 400, headers: CORS_HEADERS })
+  }
+
   cleanupCache()
 
   const cached = cache.get(sourceUrl)
   if (cached && cached.expiresAt > Date.now()) {
-    return { m3u8: cached.m3u8, cached: true }
+    return NextResponse.json({ m3u8: cached.m3u8, cached: true }, { headers: CORS_HEADERS })
   }
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: BROWSER_ARGS,
-  })
-
+  let browser = null
   try {
+    browser = await chromium.launch({
+      headless: true,
+      args: BROWSER_ARGS,
+    })
+
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     })
@@ -91,31 +95,13 @@ async function extractM3u8(sourceUrl) {
 
     cache.set(sourceUrl, { m3u8: finalUrl, expiresAt: Date.now() + TTL })
 
-    return { m3u8: finalUrl, cached: false }
-  } finally {
-    try { await page.close() } catch {}
-    try { await context.close() } catch {}
-    try { await browser.close() } catch {}
-  }
-}
-
-export async function GET(request) {
-  const { searchParams } = new URL(request.url)
-  const sourceUrl = searchParams.get('url')
-
-  if (!sourceUrl) {
-    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400, headers: CORS_HEADERS })
-  }
-
-  try { new URL(sourceUrl) } catch {
-    return NextResponse.json({ error: 'Invalid URL' }, { status: 400, headers: CORS_HEADERS })
-  }
-
-  try {
-    const result = await enqueue(() => extractM3u8(sourceUrl))
-    return NextResponse.json(result, { headers: CORS_HEADERS })
+    return NextResponse.json({ m3u8: finalUrl, cached: false }, { headers: CORS_HEADERS })
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
+  } finally {
+    if (browser) {
+      try { await browser.close() } catch {}
+    }
   }
 }
 
