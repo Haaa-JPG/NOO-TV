@@ -1,12 +1,25 @@
 'use client'
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 
 // Smart video player — supports any source:
 // - YouTube / Vimeo / Dailymotion / Wistia → embed iframe
 // - .m3u8 (HLS) → native video with hls.js
 // - .mp4 / .webm / .mov / .ogv → native HTML5 video
+// - Source page URLs (3isk, qrmzi) → auto-extract m3u8 via /api/extract
 // - Full iframe embed codes → extract src and render
 // - Any other URL → generic iframe
+
+const EXTRACT_PATTERNS = [
+  /z\.3isk\.news/i,
+  /qrmzi\.tv/i,
+  /3isk/i,
+  /krmzi\.space/i,
+  /anaplayer/i,
+]
+
+function isSourcePageUrl(url) {
+  return EXTRACT_PATTERNS.some(p => p.test(url))
+}
 
 function parseYouTube(url) {
   const patterns = [
@@ -95,10 +108,8 @@ function HlsVideo({ url, title }) {
     let hls = null
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari / iOS — native HLS support
       video.src = url
     } else {
-      // Chrome / Firefox / Edge — use hls.js
       import('hls.js').then(({ default: Hls }) => {
         hls = new Hls({ maxBufferLength: 30 })
         hls.loadSource(url)
@@ -122,7 +133,67 @@ function HlsVideo({ url, title }) {
   )
 }
 
+function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
+  const [m3u8, setM3u8] = useState(null)
+  const [error, setError] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function extract() {
+      try {
+        const res = await fetch(`/api/extract?url=${encodeURIComponent(sourceUrl)}`)
+        const data = await res.json()
+        if (cancelled) return
+        if (!res.ok) throw new Error(data.error || 'Failed to extract')
+        setM3u8(data.m3u8)
+      } catch (err) {
+        if (!cancelled) setError(err.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    extract()
+    return () => { cancelled = true }
+  }, [sourceUrl])
+
+  if (loading) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-3">
+        <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 text-sm">جاري استخراج رابط البث...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-2">
+        <p className="text-red-400 text-sm">فشل استخراج رابط البث</p>
+        <p className="text-gray-500 text-xs">{error}</p>
+      </div>
+    )
+  }
+
+  const src = shouldProxy(m3u8) ? proxyUrl(m3u8, contentId, contentType) : m3u8
+  return <HlsVideo url={src} title={title} />
+}
+
 export default function VideoPlayer({ url, title = '', contentId, contentType }) {
+  if (!url) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
+        <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
+      </div>
+    )
+  }
+
+  if (isSourcePageUrl(url)) {
+    return <ExtractingPlayer sourceUrl={url} title={title} contentId={contentId} contentType={contentType} />
+  }
+
   const result = toEmbedUrl(url)
 
   if (!result) {

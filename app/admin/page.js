@@ -74,7 +74,6 @@ const emptyMovieForm = () => ({
   title: '',
   description: '',
   embed_url: '',
-  source_url: '',
   thumbnail: '',
   banner: '',
   category: '',
@@ -145,10 +144,9 @@ export default function AdminPanel() {
   const [showSeasonForm, setShowSeasonForm] = useState(false)
   const [seasonForm, setSeasonForm] = useState({ season_number: 1, title: '', display_order: 0, is_active: true })
   const [showEpisodeForm, setShowEpisodeForm] = useState(false)
-  const [episodeForm, setEpisodeForm] = useState({ episode_number: 1, title: '', embed_url: '', source_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
+  const [episodeForm, setEpisodeForm] = useState({ episode_number: 1, title: '', embed_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
   const [editingEpisode, setEditingEpisode] = useState(null)
   const [episodeDefaults, setEpisodeDefaults] = useState({ title: '', thumbnail: '', duration: 0 })
-  const [extractingSource, setExtractingSource] = useState(null)
 
   // Categories
   const [categories, setCategories] = useState([])
@@ -286,33 +284,6 @@ export default function AdminPanel() {
     } else {
       toast({ title: 'تم الحذف' })
       loadData()
-    }
-  }
-
-  const handleExtractSource = async (sourceUrl, targetType) => {
-    if (!sourceUrl) {
-      toast({ title: 'أدخل رابط الصفحة أولاً', variant: 'destructive' })
-      return
-    }
-    setExtractingSource(targetType)
-    try {
-      const res = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: sourceUrl }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      if (targetType === 'movie') {
-        setMovieForm(prev => ({ ...prev, embed_url: data.playerUrl }))
-      } else {
-        setEpisodeForm(prev => ({ ...prev, embed_url: data.playerUrl }))
-      }
-      toast({ title: 'تم الاستخراج بنجاح', description: `الطريقة: ${data.method}` })
-    } catch (error) {
-      toast({ title: 'فشل الاستخراج', description: error.message, variant: 'destructive' })
-    } finally {
-      setExtractingSource(null)
     }
   }
 
@@ -465,7 +436,6 @@ export default function AdminPanel() {
           episode_number: nextNum,
           title: '',
           embed_url: '',
-          source_url: '',
           thumbnail: '',
           duration: 0,
           display_order: nextNum,
@@ -659,34 +629,14 @@ export default function AdminPanel() {
                         />
                       </div>
                       <div>
-                        <Label>رابط m3u8</Label>
+                        <Label>رابط الصفحة المصدر</Label>
                         <Input
                           value={movieForm.embed_url}
                           onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
                           className="bg-black border-gray-700"
-                          placeholder="https://albrq-...cdnz.online/hls2/.../master.m3u8?..."
+                          placeholder="https://z.3isk.news/video/..."
                           required
                         />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>رابط الصفحة المصدر (اختياري — للاستخراج التلقائي)</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={movieForm.source_url}
-                          onChange={(e) => setMovieForm({ ...movieForm, source_url: e.target.value })}
-                          className="bg-black border-gray-700 flex-1"
-                          placeholder="https://z.3isk.news/..."
-                        />
-                        <Button
-                          type="button"
-                          onClick={() => handleExtractSource(movieForm.source_url, 'movie')}
-                          disabled={extractingSource === 'movie'}
-                          className="bg-purple-600 hover:bg-purple-700 text-white shrink-0"
-                        >
-                          {extractingSource === 'movie' ? 'جاري...' : <><RefreshCw className="w-4 h-4 ml-1" /> استخراج</>}
-                        </Button>
                       </div>
                     </div>
 
@@ -988,7 +938,6 @@ export default function AdminPanel() {
                                     episode_number: nextNum,
                                     title: '',
                                     embed_url: '',
-                                    source_url: '',
                                     thumbnail: '',
                                     duration: 0,
                                     display_order: nextNum,
@@ -1063,31 +1012,12 @@ export default function AdminPanel() {
                                         </div>
                                       </div>
                                       <div>
-                                        <Label>رابط الصفحة المصدر (اختياري — للاستخراج التلقائي)</Label>
-                                        <div className="flex gap-2">
-                                          <Input
-                                            value={episodeForm.source_url}
-                                            onChange={(e) => setEpisodeForm({ ...episodeForm, source_url: e.target.value })}
-                                            className="bg-black border-gray-700 flex-1"
-                                            placeholder="https://z.3isk.news/..."
-                                          />
-                                          <Button
-                                            type="button"
-                                            onClick={() => handleExtractSource(episodeForm.source_url, 'episode')}
-                                            disabled={extractingSource === 'episode'}
-                                            className="bg-purple-600 hover:bg-purple-700 text-white shrink-0"
-                                          >
-                                            {extractingSource === 'episode' ? 'جاري...' : <><RefreshCw className="w-4 h-4 ml-1" /> استخراج</>}
-                                          </Button>
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <Label>رابط m3u8</Label>
+                                        <Label>رابط الصفحة المصدر</Label>
                                         <Input
                                           value={episodeForm.embed_url}
                                           onChange={(e) => setEpisodeForm({ ...episodeForm, embed_url: e.target.value })}
                                           className="bg-black border-gray-700"
-                                          placeholder="https://albrq-...cdnz.online/hls2/.../master.m3u8?..."
+                                          placeholder="https://z.3isk.news/video/episode-..."
                                           required
                                         />
                                       </div>
