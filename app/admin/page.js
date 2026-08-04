@@ -149,6 +149,12 @@ export default function AdminPanel() {
   const [editingEpisode, setEditingEpisode] = useState(null)
   const [episodeDefaults, setEpisodeDefaults] = useState({ title: '', thumbnail: '', duration: 0 })
 
+  // Bulk episode generation
+  const [bulkSourceUrl, setBulkSourceUrl] = useState('')
+  const [bulkFrom, setBulkFrom] = useState(1)
+  const [bulkTo, setBulkTo] = useState(10)
+  const [bulkGenerating, setBulkGenerating] = useState(false)
+
   // Categories
   const [categories, setCategories] = useState([])
   const [showCategoryForm, setShowCategoryForm] = useState(false)
@@ -457,6 +463,66 @@ export default function AdminPanel() {
     } else {
       toast({ title: 'تم الحذف' })
       await toggleSeason(expandedSeason.id)
+    }
+  }
+
+  // ============ BULK EPISODE GENERATION ============
+
+  const handleBulkGenerate = async () => {
+    if (!expandedSeason) {
+      toast({ title: 'اختر موسم أولاً', variant: 'destructive' })
+      return
+    }
+    if (!bulkSourceUrl) {
+      toast({ title: 'أدخل رابط المسلسل', variant: 'destructive' })
+      return
+    }
+    if (bulkFrom < 1 || bulkTo < bulkFrom) {
+      toast({ title: 'أرقام الحلقات غير صحيحة', variant: 'destructive' })
+      return
+    }
+
+    setBulkGenerating(true)
+    try {
+      const url = bulkSourceUrl.trim()
+      const lastNumberMatch = url.match(/(\d+)(?!.*\d)/)
+      if (!lastNumberMatch) {
+        toast({ title: 'لم يتم العثور على رقم في الرابط', variant: 'destructive' })
+        setBulkGenerating(false)
+        return
+      }
+
+      const lastNumber = parseInt(lastNumberMatch[0])
+      const prefix = url.substring(0, url.lastIndexOf(lastNumberMatch[0]))
+      const suffix = url.substring(url.lastIndexOf(lastNumberMatch[0]) + lastNumberMatch[0].length)
+
+      const episodes = []
+      for (let i = bulkFrom; i <= bulkTo; i++) {
+        episodes.push({
+          season_id: expandedSeason.id,
+          episode_number: i,
+          title: `الحلقة ${i}`,
+          embed_url: `${prefix}${i}${suffix}`,
+          thumbnail: episodeDefaults.thumbnail || '',
+          duration: episodeDefaults.duration || 0,
+          display_order: i,
+          is_active: true,
+          last_refreshed: new Date().toISOString(),
+        })
+      }
+
+      const { error } = await supabase.from('episodes').insert(episodes)
+      if (error) throw error
+
+      toast({ title: `تم توليد ${episodes.length} حلقة بنجاح` })
+      await toggleSeason(expandedSeason.id)
+      setBulkSourceUrl('')
+      setBulkFrom(1)
+      setBulkTo(10)
+    } catch (error) {
+      toast({ title: 'حدث خطأ', description: error.message, variant: 'destructive' })
+    } finally {
+      setBulkGenerating(false)
     }
   }
 
@@ -897,6 +963,60 @@ export default function AdminPanel() {
                           <Button type="button" variant="outline" onClick={() => setShowSeasonForm(false)}>إلغاء</Button>
                         </div>
                       </form>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {expandedSeason && (
+                  <Card className="bg-gray-900 border-gray-800 mb-4">
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <ListVideo className="w-4 h-4 text-purple-500" />
+                        توليد حلقات بالجملة — الموسم {expandedSeason.season_number || ''}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-col md:flex-row gap-3 items-end">
+                        <div className="flex-1 w-full">
+                          <Label className="text-xs">رابط صفحة المسلسل (يحتوي على رقم الحلقة)</Label>
+                          <Input
+                            value={bulkSourceUrl}
+                            onChange={(e) => setBulkSourceUrl(e.target.value)}
+                            className="bg-black border-gray-700 text-sm"
+                            placeholder="https://z.3isk.news/video/episode-name-season-1-episode-5-watch/"
+                          />
+                        </div>
+                        <div className="w-full md:w-24">
+                          <Label className="text-xs">من حلقة</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={bulkFrom}
+                            onChange={(e) => setBulkFrom(parseInt(e.target.value) || 1)}
+                            className="bg-black border-gray-700 text-sm"
+                          />
+                        </div>
+                        <div className="w-full md:w-24">
+                          <Label className="text-xs">إلى حلقة</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={bulkTo}
+                            onChange={(e) => setBulkTo(parseInt(e.target.value) || 1)}
+                            className="bg-black border-gray-700 text-sm"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleBulkGenerate}
+                          disabled={bulkGenerating}
+                          className="bg-purple-600 hover:bg-purple-700 text-white shrink-0"
+                        >
+                          {bulkGenerating ? 'جاري التوليد...' : <><RefreshCw className="w-4 h-4 ml-1" /> توليد الموسم بالكامل</>}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        يتم استخراج الرقم من نهاية الرابط واستبداله تلقائياً. مثال: إذا أدخلت رابط يحتوي على "episode-5" وحددت من 1 إلى 10، سيتم توليد روابط من "episode-1" إلى "episode-10".
+                      </p>
                     </CardContent>
                   </Card>
                 )}
