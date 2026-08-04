@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: noo-tv
+    name: noo-tv-backend
     runtime: node
     plan: free
     buildCommand: npm install && npx playwright install --with-deps chromium && npm run build

@@ -143,7 +143,7 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
 
     async function extract() {
       try {
-        const res = await fetch(`/api/extract?url=${encodeURIComponent(sourceUrl)}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_EXTRACT_URL || '/api/extract'}?url=${encodeURIComponent(sourceUrl)}`)
         const data = await res.json()
         if (cancelled) return
         if (!res.ok) throw new Error(data.error || 'Failed to extract')

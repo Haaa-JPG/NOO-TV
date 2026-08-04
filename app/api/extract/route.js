@@ -14,6 +14,12 @@ const BROWSER_ARGS = [
   '--single-process',
 ]
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
 function cleanupCache() {
   const now = Date.now()
   for (const [key, val] of cache) {
@@ -26,18 +32,18 @@ export async function GET(request) {
   const sourceUrl = searchParams.get('url')
 
   if (!sourceUrl) {
-    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 })
+    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400, headers: CORS_HEADERS })
   }
 
   try { new URL(sourceUrl) } catch {
-    return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid URL' }, { status: 400, headers: CORS_HEADERS })
   }
 
   cleanupCache()
 
   const cached = cache.get(sourceUrl)
   if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json({ m3u8: cached.m3u8, cached: true })
+    return NextResponse.json({ m3u8: cached.m3u8, cached: true }, { headers: CORS_HEADERS })
   }
 
   let browser = null
@@ -89,9 +95,9 @@ export async function GET(request) {
 
     cache.set(sourceUrl, { m3u8: finalUrl, expiresAt: Date.now() + TTL })
 
-    return NextResponse.json({ m3u8: finalUrl, cached: false })
+    return NextResponse.json({ m3u8: finalUrl, cached: false }, { headers: CORS_HEADERS })
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
   } finally {
     if (browser) {
       try { await browser.close() } catch {}
@@ -102,9 +108,6 @@ export async function GET(request) {
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    },
+    headers: CORS_HEADERS,
   })
 }
