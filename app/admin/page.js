@@ -11,12 +11,63 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar } from 'lucide-react'
+import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 
 function sanitize(str) {
   if (!str) return ''
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
+function parseExpiry(embedUrl, lastRefreshed) {
+  if (!embedUrl) return null
+  try {
+    const u = new URL(embedUrl)
+    const s = parseInt(u.searchParams.get('s'))
+    const e = parseInt(u.searchParams.get('e'))
+    if (!s || !e) return null
+    const createdAt = s
+    const expiresAt = createdAt + e
+    const now = Math.floor(Date.now() / 1000)
+    const remaining = expiresAt - now
+    return {
+      expiresAt: new Date(expiresAt * 1000),
+      remaining,
+      expired: remaining <= 0,
+      urgent: remaining > 0 && remaining < 3600,
+      hoursLeft: Math.max(0, Math.floor(remaining / 3600)),
+      minutesLeft: Math.max(0, Math.floor((remaining % 3600) / 60)),
+    }
+  } catch {
+    return null
+  }
+}
+
+function ExpiryBadge({ embedUrl, lastRefreshed }) {
+  const info = parseExpiry(embedUrl, lastRefreshed)
+  if (!info) return null
+  if (info.expired) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded-full">
+        <AlertTriangle className="w-3 h-3" />
+        منتهي الصلاحية
+      </span>
+    )
+  }
+  if (info.urgent) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full">
+        <Clock className="w-3 h-3" />
+        ينتهي خلال {info.minutesLeft} دقيقة
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
+      <Clock className="w-3 h-3" />
+      صالح ({info.hoursLeft}س {info.minutesLeft}د)
+    </span>
+  )
 }
 
 const emptyMovieForm = () => ({
@@ -202,17 +253,18 @@ export default function AdminPanel() {
   const handleMovieSubmit = async (e) => {
     e.preventDefault()
     try {
+      const dataToSave = { ...movieForm, last_refreshed: new Date().toISOString() }
       if (editingMovie) {
         const { error } = await supabase
           .from('movies')
-          .update(movieForm)
+          .update(dataToSave)
           .eq('id', editingMovie)
         if (error) throw error
         toast({ title: 'تم تحديث الفيلم' })
       } else {
         const { error } = await supabase
           .from('movies')
-          .insert([movieForm])
+          .insert([dataToSave])
         if (error) throw error
         toast({ title: 'تم إضافة الفيلم' })
       }
@@ -362,6 +414,7 @@ export default function AdminPanel() {
         title: episodeForm.title || episodeDefaults.title,
         thumbnail: episodeForm.thumbnail || episodeDefaults.thumbnail,
         duration: episodeForm.duration || episodeDefaults.duration,
+        last_refreshed: new Date().toISOString(),
       }
       if (editingEpisode) {
         const { error } = await supabase
@@ -724,10 +777,26 @@ export default function AdminPanel() {
                         <p className="text-sm text-gray-400">
                           {movie.year} • {movie.category} • {movie.quality}
                         </p>
-                        <p className="text-sm text-gray-500">{movie.views || 0} مشاهدة</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm text-gray-500">{movie.views || 0} مشاهدة</p>
+                          <ExpiryBadge embedUrl={movie.embed_url} lastRefreshed={movie.last_refreshed} />
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await supabase.from('movies').update({ last_refreshed: new Date().toISOString() }).eq('id', movie.id)
+                          toast({ title: 'تم تحديث وقت الصلاحية' })
+                          loadData()
+                        }}
+                        title="تحديث الصلاحية"
+                        className="text-green-500"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1006,9 +1075,25 @@ export default function AdminPanel() {
                                     <div className="font-semibold text-sm">
                                       الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
                                     </div>
-                                    <div className="text-xs text-gray-500">{ep.views || 0} مشاهدة</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
+                                      <ExpiryBadge embedUrl={ep.embed_url} lastRefreshed={ep.last_refreshed} />
+                                    </div>
                                   </div>
                                   <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={async () => {
+                                        await supabase.from('episodes').update({ last_refreshed: new Date().toISOString() }).eq('id', ep.id)
+                                        toast({ title: 'تم تحديث وقت الصلاحية' })
+                                        await toggleSeason(expandedSeason.id)
+                                      }}
+                                      title="تحديث الصلاحية"
+                                      className="text-green-500"
+                                    >
+                                      <RefreshCw className="w-4 h-4" />
+                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="ghost"

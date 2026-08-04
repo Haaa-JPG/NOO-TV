@@ -44,6 +44,23 @@ function detectType(url) {
   return 'iframe'
 }
 
+const PROXY_HOSTS = ['cdnz.quest', 'cdnwistia', 'wistia.']
+
+function shouldProxy(url) {
+  if (!url) return false
+  if (/\.m3u8(\?.*)?$/i.test(url)) return true
+  if (/\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)) return true
+  for (const h of PROXY_HOSTS) {
+    if (url.includes(h)) return true
+  }
+  return false
+}
+
+function proxyUrl(url) {
+  if (!url) return url
+  return `/api/proxy?url=${encodeURIComponent(url)}`
+}
+
 function extractIframeSrc(value) {
   const m = value.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']+)["']/i)
   return m ? m[1] : null
@@ -114,13 +131,15 @@ export default function VideoPlayer({ url, title = '' }) {
   }
 
   if (result.type === 'hls') {
-    return <HlsVideo url={result.embed} title={title} />
+    const src = shouldProxy(result.embed) ? proxyUrl(result.embed) : result.embed
+    return <HlsVideo url={src} title={title} />
   }
 
   if (result.type === 'video') {
+    const src = shouldProxy(result.embed) ? proxyUrl(result.embed) : result.embed
     return (
       <video
-        src={result.embed}
+        src={src}
         controls
         autoPlay
         playsInline
