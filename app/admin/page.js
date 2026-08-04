@@ -629,12 +629,12 @@ export default function AdminPanel() {
                         />
                       </div>
                       <div>
-                        <Label>رابط YouTube Embed</Label>
+                        <Label>رابط الصفحة المصدر</Label>
                         <Input
                           value={movieForm.embed_url}
                           onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
                           className="bg-black border-gray-700"
-                          placeholder="https://www.youtube.com/embed/..."
+                          placeholder="https://qrmzi.tv/اسم-الفيلم"
                           required
                         />
                       </div>
@@ -1012,12 +1012,12 @@ export default function AdminPanel() {
                                         </div>
                                       </div>
                                       <div>
-                                        <Label>رابط YouTube Embed</Label>
+                                        <Label>رابط الصفحة المصدر</Label>
                                         <Input
                                           value={episodeForm.embed_url}
                                           onChange={(e) => setEpisodeForm({ ...episodeForm, embed_url: e.target.value })}
                                           className="bg-black border-gray-700"
-                                          placeholder="https://www.youtube.com/embed/..."
+                                          placeholder="https://qrmzi.tv/اسم-الحلقة"
                                           required
                                         />
                                       </div>
