@@ -629,12 +629,12 @@ export default function AdminPanel() {
                         />
                       </div>
                       <div>
-                        <Label>رابط الصفحة المصدر</Label>
+                        <Label>رابط البث (m3u8)</Label>
                         <Input
                           value={movieForm.embed_url}
                           onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
                           className="bg-black border-gray-700"
-                          placeholder="https://qrmzi.tv/اسم-الفيلم"
+                          placeholder="https://albrq-...cdnz.online/hls2/.../master.m3u8?..."
                           required
                         />
                       </div>
@@ -1012,12 +1012,12 @@ export default function AdminPanel() {
                                         </div>
                                       </div>
                                       <div>
-                                        <Label>رابط الصفحة المصدر</Label>
+                                        <Label>رابط البث (m3u8)</Label>
                                         <Input
                                           value={episodeForm.embed_url}
                                           onChange={(e) => setEpisodeForm({ ...episodeForm, embed_url: e.target.value })}
                                           className="bg-black border-gray-700"
-                                          placeholder="https://qrmzi.tv/اسم-الحلقة"
+                                          placeholder="https://albrq-...cdnz.online/hls2/.../master.m3u8?..."
                                           required
                                         />
                                       </div>
