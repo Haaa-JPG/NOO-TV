@@ -139,6 +139,10 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setM3u8(null)
+    setError(null)
+    setLoading(true)
+
     let cancelled = false
 
     async function extract() {
