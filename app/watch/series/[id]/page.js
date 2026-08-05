@@ -123,6 +123,21 @@ export default function WatchSeries() {
     }
   }
 
+  useEffect(() => {
+    if (!seasons || seasons.length === 0) return
+    const extractUrl = process.env.NEXT_PUBLIC_EXTRACT_URL
+    if (!extractUrl) return
+
+    const allEpisodes = seasons.flatMap((s) => s.episodes || [])
+    const toPrefetch = allEpisodes.slice(0, 3)
+
+    toPrefetch.forEach((ep) => {
+      if (!ep.embed_url) return
+      fetch(`${extractUrl}/api/extract?url=${encodeURIComponent(ep.embed_url)}`)
+        .catch(() => {})
+    })
+  }, [seasons])
+
   const loadComments = async (seriesId) => {
     const { data: commentsData } = await supabase
       .from('comments')
