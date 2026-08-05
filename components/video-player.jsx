@@ -1,6 +1,18 @@
 'use client'
 import { useRef, useEffect, useState } from 'react'
 
+const EXTRACT_PATTERNS = [
+  /z\.3isk\.news/i,
+  /qrmzi\.tv/i,
+  /3isk/i,
+  /krmzi\.space/i,
+  /anaplayer/i,
+]
+
+function isSourcePageUrl(url) {
+  return EXTRACT_PATTERNS.some(p => p.test(url))
+}
+
 function parseYouTube(url) {
   const patterns = [
     /(?:youtube\.com|youtu\.be)\/watch\?(?:.*&)?v=([\w-]{11})/,
@@ -118,6 +130,21 @@ export default function VideoPlayer({ url, title = '', contentId, contentType })
     return (
       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
         <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
+      </div>
+    )
+  }
+
+  if (isSourcePageUrl(url)) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-gray-950 gap-4">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 border-4 border-red-600/20 rounded-full" />
+          <div className="absolute inset-0 border-4 border-transparent border-t-red-600 rounded-full animate-spin" />
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-white text-sm font-medium">جاري تجهيز الفيديو</p>
+          <p className="text-gray-400 text-xs">سيكون الفيديو جاهزاً قريباً</p>
+        </div>
       </div>
     )
   }
