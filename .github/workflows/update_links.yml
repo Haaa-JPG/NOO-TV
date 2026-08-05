@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: '0 */4 * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [new_episode_added]
 
 jobs:
   update-links:
