@@ -148,7 +148,38 @@ function isTokenValid(m3u8Url) {
   }
 }
 
-function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
+function getCachedM3u8(episodeId) {
+  try {
+    const raw = localStorage.getItem('nootv_m3u8_cache')
+    if (!raw) return null
+    const cache = JSON.parse(raw)
+    const entry = cache[episodeId]
+    if (!entry) return null
+    const { m3u8Url, extractedAt } = entry
+    const hoursOld = (Date.now() - extractedAt) / (1000 * 60 * 60)
+    if (hoursOld > 10) return null
+    if (!isTokenValid(m3u8Url)) return null
+    return m3u8Url
+  } catch {
+    return null
+  }
+}
+
+function setCachedM3u8(episodeId, m3u8Url) {
+  try {
+    const raw = localStorage.getItem('nootv_m3u8_cache')
+    const cache = raw ? JSON.parse(raw) : {}
+    cache[episodeId] = { m3u8Url, extractedAt: Date.now() }
+    const keys = Object.keys(cache)
+    if (keys.length > 200) {
+      const oldest = keys.sort((a, b) => (cache[a].extractedAt || 0) - (cache[b].extractedAt || 0))[0]
+      delete cache[oldest]
+    }
+    localStorage.setItem('nootv_m3u8_cache', JSON.stringify(cache))
+  } catch {}
+}
+
+function ExtractingPlayer({ sourceUrl, title, contentId, contentType, lastRefreshed }) {
   const [m3u8, setM3u8] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -159,6 +190,15 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
     setLoading(true)
 
     let cancelled = false
+
+    if (contentId) {
+      const cached = getCachedM3u8(contentId)
+      if (cached) {
+        setM3u8(cached)
+        setLoading(false)
+        return () => { cancelled = true }
+      }
+    }
 
     async function extract(forceRefresh) {
       try {
@@ -174,6 +214,7 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
           return extract(true)
         }
 
+        if (contentId) setCachedM3u8(contentId, data.m3u8)
         setM3u8(data.m3u8)
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -184,7 +225,7 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
 
     extract(false)
     return () => { cancelled = true }
-  }, [sourceUrl])
+  }, [sourceUrl, lastRefreshed, contentId])
 
   if (loading) {
     return (
@@ -218,11 +259,19 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
     )
   }
 
+  if (!m3u8) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
+        <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
+      </div>
+    )
+  }
+
   const src = shouldProxy(m3u8) ? proxyUrl(m3u8, contentId, contentType) : m3u8
   return <HlsVideo url={src} title={title} />
 }
 
-export default function VideoPlayer({ url, title = '', contentId, contentType }) {
+export default function VideoPlayer({ url, title = '', contentId, contentType, lastRefreshed }) {
   if (!url) {
     return (
       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
@@ -232,7 +281,7 @@ export default function VideoPlayer({ url, title = '', contentId, contentType })
   }
 
   if (isSourcePageUrl(url)) {
-    return <ExtractingPlayer sourceUrl={url} title={title} contentId={contentId} contentType={contentType} />
+    return <ExtractingPlayer sourceUrl={url} title={title} contentId={contentId} contentType={contentType} lastRefreshed={lastRefreshed} />
   }
 
   const result = toEmbedUrl(url)
