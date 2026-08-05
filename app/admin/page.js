@@ -173,6 +173,7 @@ export default function AdminPanel() {
     totalSeries: 0,
     totalUsers: 0,
     totalViews: 0,
+    totalEpisodes: 0,
   })
 
   useEffect(() => {
@@ -244,11 +245,17 @@ export default function AdminPanel() {
       .order('created_at', { ascending: false })
     if (complaintsData) setComplaints(complaintsData)
 
+    // Load total episodes count
+    const { count: episodesCount } = await supabase
+      .from('episodes')
+      .select('*', { count: 'exact', head: true })
+
     // Calculate stats
     setStats({
       totalMovies: moviesData?.length || 0,
       totalSeries: seriesData?.length || 0,
       totalUsers: usersData?.length || 0,
+      totalEpisodes: episodesCount || 0,
       totalViews:
         (moviesData?.reduce((sum, m) => sum + (m.views || 0), 0) || 0) +
         (seriesData?.reduce((sum, s) => sum + (s.views || 0), 0) || 0),
@@ -636,10 +643,11 @@ export default function AdminPanel() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           {[
             { label: 'إجمالي الأفلام', value: stats.totalMovies, color: 'text-red-600' },
             { label: 'إجمالي المسلسلات', value: stats.totalSeries, color: 'text-blue-600' },
+            { label: 'إجمالي الحلقات', value: stats.totalEpisodes, color: 'text-purple-600' },
             { label: 'إجمالي المستخدمين', value: stats.totalUsers, color: 'text-green-600' },
             { label: 'إجمالي المشاهدات', value: stats.totalViews, color: 'text-yellow-600' },
           ].map((stat) => (
@@ -1209,6 +1217,15 @@ export default function AdminPanel() {
                                   <div>
                                     <div className="font-semibold text-sm">
                                       الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
+                                      {ep.embed_url ? (
+                                        <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
+                                          في قاعدة البيانات ✓
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center mr-2 text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded-full">
+                                          غير موجودة ✗
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
                                       <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
