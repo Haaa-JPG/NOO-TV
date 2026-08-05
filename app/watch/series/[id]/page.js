@@ -135,7 +135,7 @@ export default function WatchSeries() {
       if (!ep.embed_url) return
       if (ep.last_refreshed) {
         const hoursSinceRefresh = (Date.now() - new Date(ep.last_refreshed).getTime()) / (1000 * 60 * 60)
-        if (hoursSinceRefresh < 10) return
+        if (hoursSinceRefresh < 6) return
       }
       fetch(`${extractUrl}/api/extract?url=${encodeURIComponent(ep.embed_url)}`)
         .catch(() => {})

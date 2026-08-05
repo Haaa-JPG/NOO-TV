@@ -125,26 +125,7 @@ function HlsVideo({ url, title }) {
   )
 }
 
-function getRemainingTokenSeconds(m3u8Url) {
-  try {
-    const u = new URL(m3u8Url)
-    const s = parseInt(u.searchParams.get('s'))
-    const e = parseInt(u.searchParams.get('e'))
-    if (!s || !e) return Infinity
-    const expiresAt = s + e
-    const now = Math.floor(Date.now() / 1000)
-    return expiresAt - now
-  } catch {
-    return Infinity
-  }
-}
-
-function isTokenStillGood(m3u8Url, safetyMarginSeconds = 7200) {
-  const remaining = getRemainingTokenSeconds(m3u8Url)
-  return remaining > safetyMarginSeconds
-}
-
-function isRefreshFresh(lastRefreshed, maxHours = 10) {
+function isRefreshFresh(lastRefreshed, maxHours = 6) {
   if (!lastRefreshed) return false
   try {
     const refreshedAt = new Date(lastRefreshed).getTime()
@@ -168,8 +149,7 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType, lastRefres
 
     let cancelled = false
 
-    if (isRefreshFresh(lastRefreshed, 10) && isTokenStillGood(sourceUrl, 7200)) {
-      setM3u8(sourceUrl)
+    if (isRefreshFresh(lastRefreshed, 6)) {
       setLoading(false)
       return () => { cancelled = true }
     }
@@ -184,7 +164,7 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType, lastRefres
         if (cancelled) return
         if (!res.ok) throw new Error(data.error || 'Failed to extract')
 
-        if (!forceRefresh && !isTokenStillGood(data.m3u8, 7200)) {
+        if (!forceRefresh && !isTokenValid(data.m3u8)) {
           return extract(true)
         }
 
