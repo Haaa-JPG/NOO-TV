@@ -20,6 +20,19 @@ function sanitize(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
+const SOURCE_PAGE_PATTERNS = [
+  /z\.3isk\.news/i,
+  /qrmzi\.tv/i,
+  /3isk/i,
+  /krmzi\.space/i,
+  /anaplayer/i,
+]
+
+function isSourcePageUrl(url) {
+  if (!url) return false
+  return SOURCE_PAGE_PATTERNS.some(p => p.test(url))
+}
+
 function parseExpiry(embedUrl, lastRefreshed) {
   if (!embedUrl) return null
   try {
@@ -1216,9 +1229,15 @@ export default function AdminPanel() {
                                     <div className="font-semibold text-sm">
                                       الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
                                       {ep.embed_url ? (
-                                        <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
-                                          في قاعدة البيانات ✓
-                                        </span>
+                                        isSourcePageUrl(ep.embed_url) ? (
+                                          <span className="inline-flex items-center mr-2 text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                                            ⏳ في طابور الانتظار
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
+                                            ✓ جاهز للمشاهدة
+                                          </span>
+                                        )
                                       ) : (
                                         <span className="inline-flex items-center mr-2 text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded-full">
                                           غير موجودة ✗
