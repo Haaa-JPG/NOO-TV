@@ -30,6 +30,7 @@ function cleanupCache() {
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const sourceUrl = searchParams.get('url')
+  const force = searchParams.get('force') === '1'
 
   if (!sourceUrl) {
     return NextResponse.json({ error: 'Missing url parameter' }, { status: 400, headers: CORS_HEADERS })
@@ -41,9 +42,11 @@ export async function GET(request) {
 
   cleanupCache()
 
-  const cached = cache.get(sourceUrl)
-  if (cached && cached.expiresAt > Date.now()) {
-    return NextResponse.json({ m3u8: cached.m3u8, cached: true }, { headers: CORS_HEADERS })
+  if (!force) {
+    const cached = cache.get(sourceUrl)
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json({ m3u8: cached.m3u8, cached: true }, { headers: CORS_HEADERS })
+    }
   }
 
   let browser = null

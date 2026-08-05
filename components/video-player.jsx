@@ -133,6 +133,21 @@ function HlsVideo({ url, title }) {
   )
 }
 
+function isTokenValid(m3u8Url) {
+  try {
+    const u = new URL(m3u8Url)
+    const s = parseInt(u.searchParams.get('s'))
+    const e = parseInt(u.searchParams.get('e'))
+    if (!s || !e) return true
+    const expiresAt = s + e
+    const now = Math.floor(Date.now() / 1000)
+    const remaining = expiresAt - now
+    return remaining > 1800
+  } catch {
+    return true
+  }
+}
+
 function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
   const [m3u8, setM3u8] = useState(null)
   const [error, setError] = useState(null)
@@ -145,12 +160,20 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
 
     let cancelled = false
 
-    async function extract() {
+    async function extract(forceRefresh) {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_EXTRACT_URL || '/api/extract'}?url=${encodeURIComponent(sourceUrl)}`)
+        const base = process.env.NEXT_PUBLIC_EXTRACT_URL || '/api/extract'
+        const params = new URLSearchParams({ url: sourceUrl })
+        if (forceRefresh) params.set('force', '1')
+        const res = await fetch(`${base}?${params.toString()}`)
         const data = await res.json()
         if (cancelled) return
         if (!res.ok) throw new Error(data.error || 'Failed to extract')
+
+        if (!forceRefresh && !isTokenValid(data.m3u8)) {
+          return extract(true)
+        }
+
         setM3u8(data.m3u8)
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -159,7 +182,7 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType }) {
       }
     }
 
-    extract()
+    extract(false)
     return () => { cancelled = true }
   }, [sourceUrl])
 
