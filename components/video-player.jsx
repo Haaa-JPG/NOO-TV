@@ -1,14 +1,6 @@
 'use client'
 import { useRef, useEffect, useState } from 'react'
 
-// Smart video player — supports any source:
-// - YouTube / Vimeo / Dailymotion / Wistia → embed iframe
-// - .m3u8 (HLS) → native video with hls.js
-// - .mp4 / .webm / .mov / .ogv → native HTML5 video
-// - Source page URLs (3isk, qrmzi) → auto-extract m3u8 via /api/extract
-// - Full iframe embed codes → extract src and render
-// - Any other URL → generic iframe
-
 const EXTRACT_PATTERNS = [
   /z\.3isk\.news/i,
   /qrmzi\.tv/i,
@@ -133,50 +125,35 @@ function HlsVideo({ url, title }) {
   )
 }
 
-function isTokenValid(m3u8Url) {
+function getRemainingTokenSeconds(m3u8Url) {
   try {
     const u = new URL(m3u8Url)
     const s = parseInt(u.searchParams.get('s'))
     const e = parseInt(u.searchParams.get('e'))
-    if (!s || !e) return true
+    if (!s || !e) return Infinity
     const expiresAt = s + e
     const now = Math.floor(Date.now() / 1000)
-    const remaining = expiresAt - now
-    return remaining > 1800
+    return expiresAt - now
   } catch {
-    return true
+    return Infinity
   }
 }
 
-function getCachedM3u8(episodeId) {
-  try {
-    const raw = localStorage.getItem('nootv_m3u8_cache')
-    if (!raw) return null
-    const cache = JSON.parse(raw)
-    const entry = cache[episodeId]
-    if (!entry) return null
-    const { m3u8Url, extractedAt } = entry
-    const hoursOld = (Date.now() - extractedAt) / (1000 * 60 * 60)
-    if (hoursOld > 10) return null
-    if (!isTokenValid(m3u8Url)) return null
-    return m3u8Url
-  } catch {
-    return null
-  }
+function isTokenStillGood(m3u8Url, safetyMarginSeconds = 7200) {
+  const remaining = getRemainingTokenSeconds(m3u8Url)
+  return remaining > safetyMarginSeconds
 }
 
-function setCachedM3u8(episodeId, m3u8Url) {
+function isRefreshFresh(lastRefreshed, maxHours = 10) {
+  if (!lastRefreshed) return false
   try {
-    const raw = localStorage.getItem('nootv_m3u8_cache')
-    const cache = raw ? JSON.parse(raw) : {}
-    cache[episodeId] = { m3u8Url, extractedAt: Date.now() }
-    const keys = Object.keys(cache)
-    if (keys.length > 200) {
-      const oldest = keys.sort((a, b) => (cache[a].extractedAt || 0) - (cache[b].extractedAt || 0))[0]
-      delete cache[oldest]
-    }
-    localStorage.setItem('nootv_m3u8_cache', JSON.stringify(cache))
-  } catch {}
+    const refreshedAt = new Date(lastRefreshed).getTime()
+    if (isNaN(refreshedAt)) return false
+    const hoursOld = (Date.now() - refreshedAt) / (1000 * 60 * 60)
+    return hoursOld < maxHours
+  } catch {
+    return false
+  }
 }
 
 function ExtractingPlayer({ sourceUrl, title, contentId, contentType, lastRefreshed }) {
@@ -191,13 +168,10 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType, lastRefres
 
     let cancelled = false
 
-    if (contentId) {
-      const cached = getCachedM3u8(contentId)
-      if (cached) {
-        setM3u8(cached)
-        setLoading(false)
-        return () => { cancelled = true }
-      }
+    if (isRefreshFresh(lastRefreshed, 10) && isTokenStillGood(sourceUrl, 7200)) {
+      setM3u8(sourceUrl)
+      setLoading(false)
+      return () => { cancelled = true }
     }
 
     async function extract(forceRefresh) {
@@ -210,11 +184,10 @@ function ExtractingPlayer({ sourceUrl, title, contentId, contentType, lastRefres
         if (cancelled) return
         if (!res.ok) throw new Error(data.error || 'Failed to extract')
 
-        if (!forceRefresh && !isTokenValid(data.m3u8)) {
+        if (!forceRefresh && !isTokenStillGood(data.m3u8, 7200)) {
           return extract(true)
         }
 
-        if (contentId) setCachedM3u8(contentId, data.m3u8)
         setM3u8(data.m3u8)
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -313,7 +286,6 @@ export default function VideoPlayer({ url, title = '', contentId, contentType, l
     )
   }
 
-  // iframe — YouTube, Vimeo, Dailymotion, Wistia, or any other
   return (
     <iframe
       src={result.embed}
