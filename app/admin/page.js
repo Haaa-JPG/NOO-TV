@@ -267,7 +267,7 @@ export default function AdminPanel() {
   const handleMovieSubmit = async (e) => {
     e.preventDefault()
     try {
-      const dataToSave = { ...movieForm, last_refreshed: new Date().toISOString() }
+      const dataToSave = { ...movieForm }
       if (editingMovie) {
         const { error } = await supabase
           .from('movies')
@@ -428,7 +428,6 @@ export default function AdminPanel() {
         title: episodeForm.title || episodeDefaults.title,
         thumbnail: episodeForm.thumbnail || episodeDefaults.thumbnail,
         duration: episodeForm.duration || episodeDefaults.duration,
-        last_refreshed: new Date().toISOString(),
       }
       if (editingEpisode) {
         const { error } = await supabase
@@ -527,7 +526,6 @@ export default function AdminPanel() {
           duration: episodeDefaults.duration || 0,
           display_order: sortOrder,
           is_active: true,
-          last_refreshed: new Date().toISOString(),
         })
         sortOrder++
       }
