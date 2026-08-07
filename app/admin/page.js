@@ -180,6 +180,9 @@ export default function AdminPanel() {
   // Complaints
   const [complaints, setComplaints] = useState([])
 
+  // Queue status
+  const [queueStatus, setQueueStatus] = useState(null)
+
   // Stats
   const [stats, setStats] = useState({
     totalMovies: 0,
@@ -258,10 +261,26 @@ export default function AdminPanel() {
       .order('created_at', { ascending: false })
     if (complaintsData) setComplaints(complaintsData)
 
-    // Load total episodes count
+    // Load total episodes count + stream status
     const { count: episodesCount } = await supabase
       .from('episodes')
       .select('*', { count: 'exact', head: true })
+
+    const [readyCount, pendingCount, failedCount] = await Promise.all([
+      supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'completed'),
+      supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'pending'),
+      supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'failed'),
+    ])
+
+    // Load queue status
+    try {
+      const EXTRACT_URL = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
+      if (EXTRACT_URL) {
+        const res = await fetch(`${EXTRACT_URL}/api/extract?status=true`)
+        const data = await res.json()
+        if (data.queue) setQueueStatus(data.queue)
+      }
+    } catch {}
 
     // Calculate stats
     setStats({
@@ -272,6 +291,9 @@ export default function AdminPanel() {
       totalViews:
         (moviesData?.reduce((sum, m) => sum + (m.views || 0), 0) || 0) +
         (seriesData?.reduce((sum, s) => sum + (s.views || 0), 0) || 0),
+      readyEpisodes: readyCount?.count || 0,
+      pendingEpisodes: pendingCount?.count || 0,
+      failedEpisodes: failedCount?.count || 0,
     })
   }
 
@@ -454,7 +476,7 @@ export default function AdminPanel() {
       } else {
         const { error } = await supabase
           .from('episodes')
-          .insert([{ ...dataToSave, season_id: expandedSeason.id }])
+          .insert([{ ...dataToSave, season_id: expandedSeason.id, stream_status: 'pending' }])
         if (error) throw error
         toast({ title: 'تم إضافة الحلقة' })
         const nextNum = (episodeForm.episode_number || 0) + 1
@@ -539,6 +561,7 @@ export default function AdminPanel() {
           duration: episodeDefaults.duration || 0,
           display_order: sortOrder,
           is_active: true,
+          stream_status: 'pending',
         })
         sortOrder++
       }
@@ -654,11 +677,10 @@ export default function AdminPanel() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
             { label: 'إجمالي الأفلام', value: stats.totalMovies, color: 'text-red-600' },
             { label: 'إجمالي المسلسلات', value: stats.totalSeries, color: 'text-blue-600' },
-            { label: 'إجمالي الحلقات', value: stats.totalEpisodes, color: 'text-purple-600' },
             { label: 'إجمالي المستخدمين', value: stats.totalUsers, color: 'text-green-600' },
             { label: 'إجمالي المشاهدات', value: stats.totalViews, color: 'text-yellow-600' },
           ].map((stat) => (
@@ -671,6 +693,64 @@ export default function AdminPanel() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Episode + Queue Status */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-gray-400">حالة الحلقات ({stats.totalEpisodes})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                <span className="inline-flex items-center gap-1 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  جاهزة: {stats.readyEpisodes || 0}
+                </span>
+                <span className="inline-flex items-center gap-1 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                  بانتظار الاستخراج: {stats.pendingEpisodes || 0}
+                </span>
+                <span className="inline-flex items-center gap-1 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
+                  فاشلة: {stats.failedEpisodes || 0}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${queueStatus?.processing > 0 ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+                حالة Worker
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {queueStatus ? (
+                <div className="flex flex-wrap gap-3">
+                  <span className="inline-flex items-center gap-1 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                    بانتظار: {queueStatus.pending || 0}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    قيد المعالجة: {queueStatus.processing || 0}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    مكتملة: {queueStatus.completed || 0}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-sm">
+                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                    فاشلة: {queueStatus.failed || 0}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">تعذر الاتصال بالـ Worker</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Tabs */}
@@ -1223,68 +1303,99 @@ export default function AdminPanel() {
                                 <p className="text-sm text-gray-500">لا توجد حلقات في هذا الموسم</p>
                               )}
 
-                              {expandedSeason?.episodes?.map((ep) => (
-                                <div key={ep.id} className="flex items-center justify-between gap-3 p-3 bg-gray-950 border border-gray-800 rounded-lg">
-                                  <div>
-                                    <div className="font-semibold text-sm">
-                                      الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
-                                      {ep.embed_url ? (
-                                        isSourcePageUrl(ep.embed_url) ? (
-                                          <span className="inline-flex items-center mr-2 text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full">
-                                            ⏳ في طابور الانتظار
-                                          </span>
-                                        ) : (
-                                          <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
-                                            ✓ جاهز للمشاهدة
-                                          </span>
-                                        )
-                                      ) : (
-                                        <span className="inline-flex items-center mr-2 text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded-full">
-                                          غير موجودة ✗
-                                        </span>
-                                      )}
+                              {expandedSeason?.episodes?.map((ep) => {
+                                const streamStatus = ep.stream_status || 'pending'
+                                const statusBadge = (() => {
+                                  if (streamStatus === 'completed' && ep.embed_url && !isSourcePageUrl(ep.embed_url)) {
+                                    return (
+                                      <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
+                                        ✓ جاهز للمشاهدة
+                                      </span>
+                                    )
+                                  }
+                                  if (streamStatus === 'processing') {
+                                    return (
+                                      <span className="inline-flex items-center mr-2 text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full">
+                                        🔄 جاري الاستخراج
+                                      </span>
+                                    )
+                                  }
+                                  if (streamStatus === 'retrying') {
+                                    return (
+                                      <span className="inline-flex items-center mr-2 text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded-full">
+                                        ⚠ إعادة المحاولة
+                                      </span>
+                                    )
+                                  }
+                                  if (streamStatus === 'failed') {
+                                    return (
+                                      <span className="inline-flex items-center mr-2 text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded-full">
+                                        ✗ فشل الاستخراج
+                                      </span>
+                                    )
+                                  }
+                                  if (ep.embed_url && isSourcePageUrl(ep.embed_url)) {
+                                    return (
+                                      <span className="inline-flex items-center mr-2 text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                                        ⏳ بانتظار الاستخراج
+                                      </span>
+                                    )
+                                  }
+                                  return (
+                                    <span className="inline-flex items-center mr-2 text-xs bg-gray-600/20 text-gray-400 px-2 py-0.5 rounded-full">
+                                      غير محددة
+                                    </span>
+                                  )
+                                })()
+                                return (
+                                  <div key={ep.id} className="flex items-center justify-between gap-3 p-3 bg-gray-950 border border-gray-800 rounded-lg">
+                                    <div>
+                                      <div className="font-semibold text-sm">
+                                        الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
+                                        {statusBadge}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
+                                        <ExpiryBadge embedUrl={ep.embed_url} lastRefreshed={ep.last_refreshed} />
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
-                                      <ExpiryBadge embedUrl={ep.embed_url} lastRefreshed={ep.last_refreshed} />
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={async () => {
+                                          await supabase.from('episodes').update({ last_refreshed: new Date().toISOString() }).eq('id', ep.id)
+                                          toast({ title: 'تم تحديث وقت الصلاحية' })
+                                          await toggleSeason(expandedSeason.id)
+                                        }}
+                                        title="تحديث الصلاحية"
+                                        className="text-green-500"
+                                      >
+                                        <RefreshCw className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setEditingEpisode(ep.id)
+                                          setEpisodeForm({ ...ep })
+                                          setShowEpisodeForm(true)
+                                        }}
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleDeleteEpisode(ep.id)}
+                                        className="text-red-500"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={async () => {
-                                        await supabase.from('episodes').update({ last_refreshed: new Date().toISOString() }).eq('id', ep.id)
-                                        toast({ title: 'تم تحديث وقت الصلاحية' })
-                                        await toggleSeason(expandedSeason.id)
-                                      }}
-                                      title="تحديث الصلاحية"
-                                      className="text-green-500"
-                                    >
-                                      <RefreshCw className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setEditingEpisode(ep.id)
-                                        setEpisodeForm({ ...ep })
-                                        setShowEpisodeForm(true)
-                                      }}
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleDeleteEpisode(ep.id)}
-                                      className="text-red-500"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           </CardContent>
                         </Card>

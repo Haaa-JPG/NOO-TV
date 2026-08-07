@@ -12,3 +12,22 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+  - type: worker
+    name: noo-tv-worker
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx playwright install --with-deps chromium
+    startCommand: node worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: WORKER_CONCURRENCY
+        value: "1"

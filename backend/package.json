@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "worker": "node worker.js",
+    "update": "node update-db.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
