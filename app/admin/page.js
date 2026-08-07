@@ -476,7 +476,12 @@ export default function AdminPanel() {
       } else {
         const { error } = await supabase
           .from('episodes')
-          .insert([{ ...dataToSave, season_id: expandedSeason.id, stream_status: 'pending' }])
+          .insert([{
+            ...dataToSave,
+            season_id: expandedSeason.id,
+            stream_status: 'pending',
+            source_url: dataToSave.embed_url,
+          }])
         if (error) throw error
         toast({ title: 'تم إضافة الحلقة' })
         const nextNum = (episodeForm.episode_number || 0) + 1
@@ -552,11 +557,13 @@ export default function AdminPanel() {
       let sortOrder = maxEpisode + 1
       for (let i = bulkFrom; i <= bulkTo; i++) {
         const epTitle = seriesTitle || `الحلقة ${sortOrder}`
+        const sourceUrl = `${prefix}${i}${suffix}`
         episodes.push({
           season_id: expandedSeason.id,
           episode_number: sortOrder,
           title: epTitle,
-          embed_url: `${prefix}${i}${suffix}`,
+          embed_url: sourceUrl,
+          source_url: sourceUrl,
           thumbnail: episodeDefaults.thumbnail || '',
           duration: episodeDefaults.duration || 0,
           display_order: sortOrder,
@@ -1360,19 +1367,40 @@ export default function AdminPanel() {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={async () => {
-                                          await supabase.from('episodes').update({ last_refreshed: new Date().toISOString() }).eq('id', ep.id)
-                                          toast({ title: 'تم تحديث وقت الصلاحية' })
-                                          await toggleSeason(expandedSeason.id)
-                                        }}
-                                        title="تحديث الصلاحية"
-                                        className="text-green-500"
-                                      >
-                                        <RefreshCw className="w-4 h-4" />
-                                      </Button>
+                                      {(streamStatus === 'failed' || streamStatus === 'pending') && ep.embed_url && isSourcePageUrl(ep.embed_url) && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={async () => {
+                                            const EXTRACT_URL = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
+                                            if (!EXTRACT_URL) {
+                                              toast({ title: 'Extract API غير مُعد', variant: 'destructive' })
+                                              return
+                                            }
+                                            try {
+                                              const res = await fetch(`${EXTRACT_URL}/api/extract`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ action: 'create_jobs', episode_ids: [ep.id] }),
+                                              })
+                                              const data = await res.json()
+                                              if (data.jobs_created > 0) {
+                                                await supabase.from('episodes').update({ stream_status: 'pending', last_error: null }).eq('id', ep.id)
+                                                toast({ title: 'تم إضافة الحلقة في الطابور' })
+                                              } else {
+                                                toast({ title: 'الحلقة لها job نشط بالفعل', variant: 'destructive' })
+                                              }
+                                              await toggleSeason(expandedSeason.id)
+                                            } catch (err) {
+                                              toast({ title: 'حدث خطأ', description: err.message, variant: 'destructive' })
+                                            }
+                                          }}
+                                          title="إعادة المحاولة"
+                                          className="text-yellow-500"
+                                        >
+                                          <RefreshCw className="w-4 h-4" />
+                                        </Button>
+                                      )}
                                       <Button
                                         size="sm"
                                         variant="ghost"

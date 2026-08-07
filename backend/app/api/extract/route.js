@@ -32,6 +32,18 @@ function isSourceUrl(url) {
   return /3isk|qrmzi|krmzi|anaplayer/i.test(url)
 }
 
+function parseTokenExpiry(m3u8Url) {
+  try {
+    const u = new URL(m3u8Url)
+    const s = parseInt(u.searchParams.get('s'))
+    const e = parseInt(u.searchParams.get('e'))
+    if (s && e) {
+      return new Date((s + e) * 1000).toISOString()
+    }
+  } catch {}
+  return new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
+}
+
 async function extractM3u8(page, sourceUrl) {
   let m3u8Url = null
 
@@ -94,39 +106,50 @@ async function extractSingleEpisode(supabase, sourceUrl) {
     ])
 
     if (m3u8) {
+      const expiresAt = parseTokenExpiry(m3u8)
+
       const { data: ep } = await supabase
         .from('episodes')
-        .select('id')
+        .select('id, source_url')
         .eq('embed_url', sourceUrl)
         .limit(1)
         .maybeSingle()
 
       if (ep) {
+        const updateData = {
+          embed_url: m3u8,
+          last_refreshed: new Date().toISOString(),
+          stream_status: 'completed',
+          last_error: null,
+          expires_at: expiresAt,
+        }
+        if (!ep.source_url) {
+          updateData.source_url = sourceUrl
+        }
         await supabase
           .from('episodes')
-          .update({
-            embed_url: m3u8,
-            last_refreshed: new Date().toISOString(),
-            stream_status: 'completed',
-            last_error: null,
-          })
+          .update(updateData)
           .eq('id', ep.id)
       } else {
         const { data: movie } = await supabase
           .from('movies')
-          .select('id')
+          .select('id, source_url')
           .eq('embed_url', sourceUrl)
           .limit(1)
           .maybeSingle()
 
         if (movie) {
+          const updateData = {
+            embed_url: m3u8,
+            last_refreshed: new Date().toISOString(),
+            stream_status: 'completed',
+          }
+          if (!movie.source_url) {
+            updateData.source_url = sourceUrl
+          }
           await supabase
             .from('movies')
-            .update({
-              embed_url: m3u8,
-              last_refreshed: new Date().toISOString(),
-              stream_status: 'completed',
-            })
+            .update(updateData)
             .eq('id', movie.id)
         }
       }
@@ -327,14 +350,26 @@ async function processNextJob(supabase) {
       await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8 })
 
       if (job.episode_id) {
+        const expiresAt = parseTokenExpiry(m3u8)
+        const { data: ep } = await supabase
+          .from('episodes')
+          .select('source_url')
+          .eq('id', job.episode_id)
+          .single()
+
+        const updateData = {
+          embed_url: m3u8,
+          last_refreshed: new Date().toISOString(),
+          stream_status: 'completed',
+          last_error: null,
+          expires_at: expiresAt,
+        }
+        if (!ep?.source_url) {
+          updateData.source_url = job.source_url
+        }
         await supabase
           .from('episodes')
-          .update({
-            embed_url: m3u8,
-            last_refreshed: new Date().toISOString(),
-            stream_status: 'completed',
-            last_error: null,
-          })
+          .update(updateData)
           .eq('id', job.episode_id)
       }
 

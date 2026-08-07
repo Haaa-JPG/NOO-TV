@@ -14,6 +14,7 @@ const BROWSER_ARGS = [
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '1', 10)
 const POLL_INTERVAL = 5000
 const JOB_TIMEOUT = 120000
+const REFRESH_WINDOW = parseInt(process.env.STREAM_REFRESH_WINDOW_SECONDS || '1800', 10)
 
 let shuttingDown = false
 let currentJobRunning = false
@@ -91,7 +92,7 @@ async function claimAndProcess(supabase) {
   const { data: job, error: claimError } = await supabase.rpc('claim_next_job')
   if (claimError || !job) return false
 
-  console.log(`[WORKER] Job claimed: ${job.id} (${job.source_url?.substring(0, 60)}...)`)
+  console.log(`[WORKER] Job claimed: ${job.id} type=${job.job_type} (${job.source_url?.substring(0, 60)}...)`)
   currentJobRunning = true
 
   let browser = null
@@ -113,14 +114,20 @@ async function claimAndProcess(supabase) {
       await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8 })
 
       if (job.episode_id) {
+        const updateData = {
+          embed_url: m3u8,
+          last_refreshed: new Date().toISOString(),
+          stream_status: 'completed',
+          last_error: null,
+        }
+
+        if (job.job_type === 'refresh') {
+          updateData.expires_at = parseTokenExpiry(m3u8)
+        }
+
         await supabase
           .from('episodes')
-          .update({
-            embed_url: m3u8,
-            last_refreshed: new Date().toISOString(),
-            stream_status: 'completed',
-            last_error: null,
-          })
+          .update(updateData)
           .eq('id', job.episode_id)
       }
 
@@ -144,7 +151,19 @@ async function claimAndProcess(supabase) {
   }
 }
 
-async function processEpisodesNeedingRefresh(supabase) {
+function parseTokenExpiry(m3u8Url) {
+  try {
+    const u = new URL(m3u8Url)
+    const s = parseInt(u.searchParams.get('s'))
+    const e = parseInt(u.searchParams.get('e'))
+    if (s && e) {
+      return new Date((s + e) * 1000).toISOString()
+    }
+  } catch {}
+  return new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
+}
+
+async function processNewExtractions(supabase) {
   const { data: episodes, error } = await supabase
     .from('episodes')
     .select('id, embed_url')
@@ -179,13 +198,54 @@ async function processEpisodesNeedingRefresh(supabase) {
 
   if (newJobs.length > 0) {
     await supabase.from('jobs').insert(newJobs)
-    console.log(`[SCHEDULER] Created ${newJobs.length} jobs`)
+    console.log(`[SCHEDULER] Created ${newJobs.length} extraction jobs`)
+  }
+}
+
+async function processRefreshJobs(supabase) {
+  const { data: episodes, error } = await supabase
+    .from('episodes')
+    .select('id, source_url, embed_url, expires_at')
+    .eq('is_active', true)
+    .not('source_url', 'is', null)
+    .neq('source_url', '')
+    .eq('stream_status', 'completed')
+    .not('expires_at', 'is', null)
+    .lte('expires_at', new Date(Date.now() + REFRESH_WINDOW * 1000).toISOString())
+
+  if (error || !episodes || episodes.length === 0) return
+
+  const epIds = episodes.map(ep => ep.id)
+  const { data: existingJobs } = await supabase
+    .from('jobs')
+    .select('episode_id')
+    .in('episode_id', epIds)
+    .in('status', ['pending', 'processing', 'retrying'])
+
+  const existingJobEps = new Set((existingJobs || []).map(j => j.episode_id))
+
+  const newJobs = episodes
+    .filter(ep => !existingJobEps.has(ep.id))
+    .map(ep => ({
+      job_type: 'refresh',
+      episode_id: ep.id,
+      content_type: 'episode',
+      source_url: ep.source_url,
+      status: 'pending',
+      priority: 8,
+      max_attempts: 3,
+    }))
+
+  if (newJobs.length > 0) {
+    await supabase.from('jobs').insert(newJobs)
+    console.log(`[SCHEDULER] Created ${newJobs.length} refresh jobs`)
   }
 }
 
 async function main() {
   console.log('=== NOO TV Background Worker ===')
   console.log('Concurrency:', CONCURRENCY)
+  console.log('Refresh window:', REFRESH_WINDOW, 'seconds')
   console.log('Time:', new Date().toISOString())
 
   const supabase = getSupabase()
@@ -247,7 +307,8 @@ async function main() {
 
       if (now - lastSchedulerRun > SCHEDULER_INTERVAL) {
         await recoverStaleJobs(supabase)
-        await processEpisodesNeedingRefresh(supabase)
+        await processNewExtractions(supabase)
+        await processRefreshJobs(supabase)
         lastSchedulerRun = now
       }
 
