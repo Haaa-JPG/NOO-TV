@@ -32,9 +32,32 @@ export async function GET() {
       supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'completed'),
     ])
 
+    let workerOnline = false
+    let workerStatus = 'unknown'
+    let workerLastSeen = null
+    try {
+      const { data: hb } = await supabase
+        .from('worker_heartbeat')
+        .select('last_seen, status')
+        .eq('id', 'main')
+        .single()
+
+      if (hb) {
+        workerLastSeen = hb.last_seen
+        workerStatus = hb.status || 'unknown'
+        const lastSeenTime = new Date(hb.last_seen).getTime()
+        workerOnline = (Date.now() - lastSeenTime) < 120000
+      }
+    } catch {}
+
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
+      worker: {
+        online: workerOnline,
+        status: workerStatus,
+        last_seen: workerLastSeen,
+      },
       queue: {
         pending: pending.count || 0,
         processing: processing.count || 0,

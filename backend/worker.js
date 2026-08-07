@@ -13,8 +13,10 @@ const BROWSER_ARGS = [
 
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '1', 10)
 const POLL_INTERVAL = 5000
-const STALE_MINUTES = 5
 const JOB_TIMEOUT = 120000
+
+let shuttingDown = false
+let currentJobRunning = false
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL
@@ -39,13 +41,22 @@ async function extractM3u8(page, sourceUrl) {
       reject(new Error('Timeout: m3u8 not found in 45s'))
     }, 45000)
 
-    page.on('response', (response) => {
+    const onResponse = (response) => {
       const url = response.url()
       if (url.includes('.m3u8') && !m3u8Url) {
         m3u8Url = url
         clearTimeout(timer)
+        page.removeListener('response', onResponse)
         resolve(url)
       }
+    }
+
+    page.on('response', onResponse)
+
+    page.once('close', () => {
+      clearTimeout(timer)
+      page.removeListener('response', onResponse)
+      if (!m3u8Url) reject(new Error('Page closed before m3u8 found'))
     })
   })
 
@@ -75,26 +86,28 @@ async function recoverStaleJobs(supabase) {
 }
 
 async function claimAndProcess(supabase) {
+  if (shuttingDown) return false
+
   const { data: job, error: claimError } = await supabase.rpc('claim_next_job')
   if (claimError || !job) return false
 
   console.log(`[WORKER] Job claimed: ${job.id} (${job.source_url?.substring(0, 60)}...)`)
+  currentJobRunning = true
 
   let browser = null
+  let context = null
+  let page = null
   try {
     browser = await chromium.launch({ headless: true, args: BROWSER_ARGS })
-    const context = await browser.newContext({
+    context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     })
-    const page = await context.newPage()
+    page = await context.newPage()
 
     const m3u8 = await Promise.race([
       extractM3u8(page, job.source_url),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Job timeout')), JOB_TIMEOUT))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Job timeout')), JOB_TIMEOUT)),
     ])
-
-    await page.close()
-    await context.close()
 
     if (m3u8) {
       await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8 })
@@ -112,6 +125,7 @@ async function claimAndProcess(supabase) {
       }
 
       console.log(`[WORKER] Job completed: ${job.id}`)
+      jobsProcessed++
       return true
     }
 
@@ -123,46 +137,49 @@ async function claimAndProcess(supabase) {
     console.error(`[WORKER] Job error: ${job.id} - ${err.message}`)
     return true
   } finally {
-    if (browser) {
-      try { await browser.close() } catch {}
-    }
+    if (page) { try { await page.close() } catch {} }
+    if (context) { try { await context.close() } catch {} }
+    if (browser) { try { await browser.close() } catch {} }
+    currentJobRunning = false
   }
 }
 
 async function processEpisodesNeedingRefresh(supabase) {
-  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-
-  const { data: episodes } = await supabase
+  const { data: episodes, error } = await supabase
     .from('episodes')
     .select('id, embed_url')
     .eq('is_active', true)
     .or('stream_status.is.null,stream_status.eq.pending')
 
-  if (!episodes || episodes.length === 0) return
+  if (error || !episodes || episodes.length === 0) return
 
-  for (const ep of episodes) {
-    if (!ep.embed_url || !isSourceUrl(ep.embed_url)) continue
+  const sourceEpisodes = episodes.filter(ep => ep.embed_url && isSourceUrl(ep.embed_url))
+  if (sourceEpisodes.length === 0) return
 
-    const { data: existing } = await supabase
-      .from('jobs')
-      .select('id')
-      .eq('episode_id', ep.id)
-      .in('status', ['pending', 'processing', 'retrying'])
-      .limit(1)
-      .maybeSingle()
+  const epIds = sourceEpisodes.map(ep => ep.id)
+  const { data: existingJobs } = await supabase
+    .from('jobs')
+    .select('episode_id')
+    .in('episode_id', epIds)
+    .in('status', ['pending', 'processing', 'retrying'])
 
-    if (!existing) {
-      await supabase.from('jobs').insert({
-        job_type: 'extract',
-        episode_id: ep.id,
-        content_type: 'episode',
-        source_url: ep.embed_url,
-        status: 'pending',
-        priority: 3,
-        max_attempts: 3,
-      })
-      console.log(`[SCHEDULER] Created job for episode: ${ep.id}`)
-    }
+  const existingJobEps = new Set((existingJobs || []).map(j => j.episode_id))
+
+  const newJobs = sourceEpisodes
+    .filter(ep => !existingJobEps.has(ep.id))
+    .map(ep => ({
+      job_type: 'extract',
+      episode_id: ep.id,
+      content_type: 'episode',
+      source_url: ep.embed_url,
+      status: 'pending',
+      priority: 3,
+      max_attempts: 3,
+    }))
+
+  if (newJobs.length > 0) {
+    await supabase.from('jobs').insert(newJobs)
+    console.log(`[SCHEDULER] Created ${newJobs.length} jobs`)
   }
 }
 
@@ -174,47 +191,78 @@ async function main() {
   const supabase = getSupabase()
 
   let lastSchedulerRun = 0
+  let lastHeartbeat = 0
   const SCHEDULER_INTERVAL = 60000
+  const HEARTBEAT_INTERVAL = 30000
+  let jobsProcessed = 0
 
-  const runCycle = async () => {
-    const now = Date.now()
-
-    if (now - lastSchedulerRun > SCHEDULER_INTERVAL) {
-      await recoverStaleJobs(supabase)
-      await processEpisodesNeedingRefresh(supabase)
-      lastSchedulerRun = now
-    }
-
-    let processed = 0
-    while (processed < CONCURRENCY) {
-      const didWork = await claimAndProcess(supabase)
-      if (!didWork) break
-      processed++
-    }
+  async function sendHeartbeat(status, extraJobs) {
+    try {
+      await supabase.rpc('update_worker_heartbeat', {
+        p_status: status,
+        p_jobs_processed: extraJobs || 0,
+      })
+    } catch {}
   }
 
-  const loop = async () => {
-    while (true) {
-      try {
-        await runCycle()
-      } catch (err) {
-        console.error('[WORKER] Cycle error:', err.message)
+  process.on('SIGTERM', async () => {
+    console.log('[WORKER] SIGTERM received. Waiting for current job to finish...')
+    shuttingDown = true
+    const checkExit = setInterval(() => {
+      if (!currentJobRunning) {
+        clearInterval(checkExit)
+        console.log('[WORKER] Shutdown complete.')
+        process.exit(0)
       }
-      await new Promise(r => setTimeout(r, POLL_INTERVAL))
-    }
-  }
-
-  process.on('SIGTERM', () => {
-    console.log('[WORKER] Shutting down gracefully...')
-    process.exit(0)
+    }, 1000)
   })
 
   process.on('SIGINT', () => {
-    console.log('[WORKER] Shutting down gracefully...')
-    process.exit(0)
+    console.log('[WORKER] SIGINT received. Waiting for current job to finish...')
+    shuttingDown = true
+    const checkExit = setInterval(() => {
+      if (!currentJobRunning) {
+        clearInterval(checkExit)
+        console.log('[WORKER] Shutdown complete.')
+        process.exit(0)
+      }
+    }, 1000)
   })
 
-  await loop()
+  while (true) {
+    if (shuttingDown && !currentJobRunning) {
+      console.log('[WORKER] Shutting down (no active job).')
+      process.exit(0)
+    }
+
+    try {
+      const now = Date.now()
+
+      if (now - lastHeartbeat > HEARTBEAT_INTERVAL) {
+        const status = currentJobRunning ? 'processing' : 'idle'
+        await sendHeartbeat(status, jobsProcessed)
+        jobsProcessed = 0
+        lastHeartbeat = now
+      }
+
+      if (now - lastSchedulerRun > SCHEDULER_INTERVAL) {
+        await recoverStaleJobs(supabase)
+        await processEpisodesNeedingRefresh(supabase)
+        lastSchedulerRun = now
+      }
+
+      let processed = 0
+      while (processed < CONCURRENCY && !shuttingDown) {
+        const didWork = await claimAndProcess(supabase)
+        if (!didWork) break
+        processed++
+      }
+    } catch (err) {
+      console.error('[WORKER] Cycle error:', err.message)
+    }
+
+    await new Promise(r => setTimeout(r, POLL_INTERVAL))
+  }
 }
 
 main().catch((err) => {

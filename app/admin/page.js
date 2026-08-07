@@ -276,9 +276,9 @@ export default function AdminPanel() {
     try {
       const EXTRACT_URL = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
       if (EXTRACT_URL) {
-        const res = await fetch(`${EXTRACT_URL}/api/extract?status=true`)
+        const res = await fetch(`${EXTRACT_URL}/api/health`)
         const data = await res.json()
-        if (data.queue) setQueueStatus(data.queue)
+        if (data.queue) setQueueStatus({ ...data.queue, worker: data.worker })
       }
     } catch {}
 
@@ -722,8 +722,8 @@ export default function AdminPanel() {
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${queueStatus?.processing > 0 ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-                حالة Worker
+                <span className={`w-2 h-2 rounded-full ${queueStatus?.worker?.online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                حالة Worker ({queueStatus?.worker?.online ? 'متصل' : 'غير متصل'})
               </CardTitle>
             </CardHeader>
             <CardContent>

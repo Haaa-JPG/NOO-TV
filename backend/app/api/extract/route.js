@@ -40,14 +40,24 @@ async function extractM3u8(page, sourceUrl) {
       reject(new Error('Timeout: m3u8 not found in 45s'))
     }, 45000)
 
-    page.on('response', (response) => {
+    const onResponse = (response) => {
       const url = response.url()
       if (url.includes('.m3u8') && !m3u8Url) {
         m3u8Url = url
         clearTimeout(timer)
+        page.removeListener('response', onResponse)
         resolve(url)
       }
-    })
+    }
+
+    page.on('response', onResponse)
+
+    const cleanup = () => {
+      clearTimeout(timer)
+      page.removeListener('response', onResponse)
+      if (!m3u8Url) reject(new Error('Page closed before m3u8 found'))
+    }
+    page.once('close', cleanup)
   })
 
   await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 25000 })
@@ -70,15 +80,18 @@ async function extractM3u8(page, sourceUrl) {
 
 async function extractSingleEpisode(supabase, sourceUrl) {
   let browser = null
+  let context = null
+  let page = null
   try {
     browser = await chromium.launch({ headless: true, args: BROWSER_ARGS })
-    const context = await browser.newContext({
+    context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     })
-    const page = await context.newPage()
-    const m3u8 = await extractM3u8(page, sourceUrl)
-    await page.close()
-    await context.close()
+    page = await context.newPage()
+    const m3u8 = await Promise.race([
+      extractM3u8(page, sourceUrl),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Job timeout')), JOB_TIMEOUT)),
+    ])
 
     if (m3u8) {
       const { data: ep } = await supabase
@@ -98,6 +111,24 @@ async function extractSingleEpisode(supabase, sourceUrl) {
             last_error: null,
           })
           .eq('id', ep.id)
+      } else {
+        const { data: movie } = await supabase
+          .from('movies')
+          .select('id')
+          .eq('embed_url', sourceUrl)
+          .limit(1)
+          .maybeSingle()
+
+        if (movie) {
+          await supabase
+            .from('movies')
+            .update({
+              embed_url: m3u8,
+              last_refreshed: new Date().toISOString(),
+              stream_status: 'completed',
+            })
+            .eq('id', movie.id)
+        }
       }
 
       return { success: true, m3u8, episodeId: ep?.id }
@@ -107,9 +138,9 @@ async function extractSingleEpisode(supabase, sourceUrl) {
   } catch (err) {
     return { success: false, error: err.message }
   } finally {
-    if (browser) {
-      try { await browser.close() } catch {}
-    }
+    if (page) { try { await page.close() } catch {} }
+    if (context) { try { await context.close() } catch {} }
+    if (browser) { try { await browser.close() } catch {} }
   }
 }
 
@@ -208,7 +239,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 500, headers: CORS_HEADERS })
   }
 
-  const { action, episode_ids, source_url } = body
+  const { action, episode_ids } = body
 
   if (action === 'create_jobs' && episode_ids?.length > 0) {
     const jobs = []
@@ -278,16 +309,19 @@ async function processNextJob(supabase) {
   console.log(`[QUEUE] Job claimed: ${job.id} (${job.source_url?.substring(0, 60)}...)`)
 
   let browser = null
+  let context = null
+  let page = null
   try {
     browser = await chromium.launch({ headless: true, args: BROWSER_ARGS })
-    const context = await browser.newContext({
+    context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     })
-    const page = await context.newPage()
+    page = await context.newPage()
 
-    const m3u8 = await extractM3u8(page, job.source_url)
-    await page.close()
-    await context.close()
+    const m3u8 = await Promise.race([
+      extractM3u8(page, job.source_url),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Job timeout')), JOB_TIMEOUT)),
+    ])
 
     if (m3u8) {
       await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8 })
@@ -316,9 +350,9 @@ async function processNextJob(supabase) {
     console.error(`[QUEUE] Job error: ${job.id} - ${err.message}`)
     return { status: 'error', job_id: job.id, error: err.message }
   } finally {
-    if (browser) {
-      try { await browser.close() } catch {}
-    }
+    if (page) { try { await page.close() } catch {} }
+    if (context) { try { await context.close() } catch {} }
+    if (browser) { try { await browser.close() } catch {} }
   }
 }
 

@@ -131,46 +131,78 @@ function SourceExtracting({ url, onExtracted, onError }) {
   const [status, setStatus] = useState('extracting')
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState('جاري استخراج رابط الفيديو...')
-
-  const doExtract = useCallback(async () => {
-    if (!EXTRACT_API) {
-      setError('Extract API not configured')
-      setStatus('error')
-      onError?.('Extract API not configured')
-      return
-    }
-
-    setStatus('extracting')
-    setProgress('جاري استخراج رابط الفيديو...')
-
-    try {
-      const encodedUrl = encodeURIComponent(url)
-      const res = await fetch(`${EXTRACT_API}/api/extract?url=${encodedUrl}`, {
-        signal: AbortSignal.timeout(90000),
-      })
-      const data = await res.json()
-
-      if (data.m3u8) {
-        setStatus('success')
-        setProgress('تم الاستخراج بنجاح!')
-        onExtracted?.(data.m3u8)
-      } else {
-        throw new Error(data.error || 'Extraction failed')
-      }
-    } catch (err) {
-      if (err.name === 'TimeoutError') {
-        setError('انتهت مهلة الاستخراج')
-      } else {
-        setError(err.message || 'حدث خطأ أثناء الاستخراج')
-      }
-      setStatus('error')
-      onError?.(err.message)
-    }
-  }, [url, onExtracted, onError])
+  const extractionRef = useRef(false)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    if (extractionRef.current) return
+    extractionRef.current = true
+
+    let cancelled = false
+
+    async function doExtract() {
+      if (!EXTRACT_API) {
+        if (mountedRef.current && !cancelled) {
+          setError('Extract API not configured')
+          setStatus('error')
+          onError?.('Extract API not configured')
+        }
+        return
+      }
+
+      if (mountedRef.current && !cancelled) {
+        setStatus('extracting')
+        setProgress('جاري استخراج رابط الفيديو...')
+      }
+
+      try {
+        const encodedUrl = encodeURIComponent(url)
+        const res = await fetch(`${EXTRACT_API}/api/extract?url=${encodedUrl}`, {
+          signal: AbortSignal.timeout(90000),
+        })
+        const data = await res.json()
+
+        if (cancelled) return
+
+        if (data.m3u8) {
+          if (mountedRef.current) {
+            setStatus('success')
+            setProgress('تم الاستخراج بنجاح!')
+          }
+          onExtracted?.(data.m3u8)
+        } else {
+          throw new Error(data.error || 'Extraction failed')
+        }
+      } catch (err) {
+        if (cancelled) return
+        if (err.name === 'TimeoutError') {
+          setError('انتهت مهلة الاستخراج')
+        } else {
+          setError(err.message || 'حدث خطأ أثناء الاستخراج')
+        }
+        if (mountedRef.current) {
+          setStatus('error')
+        }
+        onError?.(err.message)
+      }
+    }
+
     doExtract()
-  }, [doExtract])
+
+    return () => { cancelled = true }
+  }, [url])
+
+  const retry = useCallback(() => {
+    extractionRef.current = false
+    setError(null)
+    setStatus('extracting')
+    setProgress('جاري إعادة الاستخراج...')
+  }, [])
 
   if (status === 'success') {
     return (
@@ -193,7 +225,7 @@ function SourceExtracting({ url, onExtracted, onError }) {
           <p className="text-red-400 text-sm font-medium">تعذر استخراج الفيديو</p>
           <p className="text-gray-500 text-xs">{error}</p>
           <button
-            onClick={() => { setError(null); setStatus('extracting'); doExtract() }}
+            onClick={retry}
             className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition"
           >
             إعادة المحاولة
@@ -220,6 +252,10 @@ function SourceExtracting({ url, onExtracted, onError }) {
 export default function VideoPlayer({ url, title = '', contentId, contentType }) {
   const [extractedUrl, setExtractedUrl] = useState(null)
 
+  const handleExtracted = useCallback((m3u8) => {
+    setExtractedUrl(m3u8)
+  }, [])
+
   if (!url) {
     return (
       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
@@ -232,7 +268,7 @@ export default function VideoPlayer({ url, title = '', contentId, contentType })
     return (
       <SourceExtracting
         url={url}
-        onExtracted={(m3u8) => setExtractedUrl(m3u8)}
+        onExtracted={handleExtracted}
         onError={() => {}}
       />
     )
