@@ -33,7 +33,7 @@ const nextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
           { key: "X-XSS-Protection", value: "1; mode=block" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src https://www.youtube.com https://player.vimeo.com https://www.dailymotion.com https://fast.wistia.net; media-src 'self' http: https: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';" },
+          { key: "Content-Security-Policy", value: "default-src 'self' https: http: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob: *; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; media-src 'self' https: http: blob:; font-src 'self' data: https:; object-src 'none';" },
         ],
       },
       {
