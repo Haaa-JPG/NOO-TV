@@ -417,7 +417,7 @@ export default function WatchSeries() {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <div className="flex items-start gap-4 mb-6">
-              <img src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=200'} alt={show.title} className="w-32 h-48 object-cover rounded-lg hidden sm:block" />
+              <img src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=200'} alt={show.title} className="w-32 h-48 object-cover rounded-lg hidden sm:block" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=200' }} />
               <div className="flex-1">
                 <h1 className="text-4xl font-bold mb-2">{show.title}</h1>
                 <div className="flex items-center gap-3 text-gray-400 mb-3 flex-wrap">

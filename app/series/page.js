@@ -116,6 +116,9 @@ function SeriesContent() {
                       src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=400'}
                       alt={show.title}
                       className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=400'
+                      }}
                     />
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                       <Play className="w-12 h-12 text-white" />

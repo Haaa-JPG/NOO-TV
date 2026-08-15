@@ -248,7 +248,7 @@ export default function WatchMovie() {
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
             <div className="flex items-start gap-4 mb-6">
-              <img src={movie.thumbnail || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=200'} alt={movie.title} className="w-32 h-48 object-cover rounded-lg" />
+              <img src={movie.thumbnail || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=200'} alt={movie.title} className="w-32 h-48 object-cover rounded-lg" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=200' }} />
               <div className="flex-1">
                 <h1 className="text-4xl font-bold mb-2">{movie.title}</h1>
                 <div className="flex items-center gap-4 text-gray-400 mb-4">
