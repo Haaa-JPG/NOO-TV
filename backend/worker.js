@@ -1,15 +1,5 @@
-const { chromium } = require('playwright')
 const { createClient } = require('@supabase/supabase-js')
-
-const BROWSER_ARGS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-gpu',
-  '--disable-dev-shm-usage',
-  '--no-first-run',
-  '--no-zygote',
-  '--single-process',
-]
+const { scrapeM3u8, isSourceUrl, parseTokenExpiry } = require('./services/scraper')
 
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '1', 10)
 const POLL_INTERVAL = 5000
@@ -29,56 +19,6 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-function isSourceUrl(url) {
-  if (!url) return false
-  return /3isk|qrmzi|krmzi|anaplayer/i.test(url)
-}
-
-async function extractM3u8(page, sourceUrl) {
-  let m3u8Url = null
-
-  const m3u8Promise = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('Timeout: m3u8 not found in 45s'))
-    }, 45000)
-
-    const onResponse = (response) => {
-      const url = response.url()
-      if (url.includes('.m3u8') && !m3u8Url) {
-        m3u8Url = url
-        clearTimeout(timer)
-        page.removeListener('response', onResponse)
-        resolve(url)
-      }
-    }
-
-    page.on('response', onResponse)
-
-    page.once('close', () => {
-      clearTimeout(timer)
-      page.removeListener('response', onResponse)
-      if (!m3u8Url) reject(new Error('Page closed before m3u8 found'))
-    })
-  })
-
-  await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 25000 })
-  await page.waitForTimeout(3000)
-
-  try {
-    const playBtn = await page.$('#playImage')
-    if (playBtn) await playBtn.click({ timeout: 3000 })
-  } catch {}
-
-  try {
-    const serverItems = await page.$$('#server-list li')
-    if (serverItems.length > 0) {
-      await serverItems[0].click({ timeout: 3000 })
-    }
-  } catch {}
-
-  return m3u8Promise
-}
-
 async function recoverStaleJobs(supabase) {
   const { data, error } = await supabase.rpc('recover_stale_jobs')
   if (data && data > 0) {
@@ -95,34 +35,26 @@ async function claimAndProcess(supabase) {
   console.log(`[WORKER] Job claimed: ${job.id} type=${job.job_type} (${job.source_url?.substring(0, 60)}...)`)
   currentJobRunning = true
 
-  let browser = null
-  let context = null
-  let page = null
   try {
-    browser = await chromium.launch({ headless: true, args: BROWSER_ARGS })
-    context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    })
-    page = await context.newPage()
-
-    const m3u8 = await Promise.race([
-      extractM3u8(page, job.source_url),
+    const { m3u8Url, expiresAt } = await Promise.race([
+      scrapeM3u8(job.source_url),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Job timeout')), JOB_TIMEOUT)),
     ])
 
-    if (m3u8) {
-      await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8 })
+    if (m3u8Url) {
+      await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8Url })
 
       if (job.episode_id) {
         const updateData = {
-          embed_url: m3u8,
+          active_stream_url: m3u8Url,
+          embed_url: m3u8Url,
           last_refreshed: new Date().toISOString(),
           stream_status: 'completed',
           last_error: null,
         }
 
         if (job.job_type === 'refresh') {
-          updateData.expires_at = parseTokenExpiry(m3u8)
+          updateData.expires_at = expiresAt
         }
 
         await supabase
@@ -131,8 +63,25 @@ async function claimAndProcess(supabase) {
           .eq('id', job.episode_id)
       }
 
+      if (job.movie_id) {
+        const updateData = {
+          active_stream_url: m3u8Url,
+          last_refreshed: new Date().toISOString(),
+          stream_status: 'completed',
+          last_error: null,
+        }
+
+        if (job.job_type === 'refresh') {
+          updateData.expires_at = expiresAt
+        }
+
+        await supabase
+          .from('movies')
+          .update(updateData)
+          .eq('id', job.movie_id)
+      }
+
       console.log(`[WORKER] Job completed: ${job.id}`)
-      jobsProcessed++
       return true
     }
 
@@ -144,23 +93,8 @@ async function claimAndProcess(supabase) {
     console.error(`[WORKER] Job error: ${job.id} - ${err.message}`)
     return true
   } finally {
-    if (page) { try { await page.close() } catch {} }
-    if (context) { try { await context.close() } catch {} }
-    if (browser) { try { await browser.close() } catch {} }
     currentJobRunning = false
   }
-}
-
-function parseTokenExpiry(m3u8Url) {
-  try {
-    const u = new URL(m3u8Url)
-    const s = parseInt(u.searchParams.get('s'))
-    const e = parseInt(u.searchParams.get('e'))
-    if (s && e) {
-      return new Date((s + e) * 1000).toISOString()
-    }
-  } catch {}
-  return new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
 }
 
 async function processNewExtractions(supabase) {
@@ -205,7 +139,7 @@ async function processNewExtractions(supabase) {
 async function processRefreshJobs(supabase) {
   const { data: episodes, error } = await supabase
     .from('episodes')
-    .select('id, source_url, embed_url, expires_at')
+    .select('id, source_url, active_stream_url, embed_url, expires_at')
     .eq('is_active', true)
     .not('source_url', 'is', null)
     .neq('source_url', '')
@@ -239,6 +173,47 @@ async function processRefreshJobs(supabase) {
   if (newJobs.length > 0) {
     await supabase.from('jobs').insert(newJobs)
     console.log(`[SCHEDULER] Created ${newJobs.length} refresh jobs`)
+  }
+}
+
+async function processMovieExtractions(supabase) {
+  const { data: movies, error } = await supabase
+    .from('movies')
+    .select('id, source_page_url, active_stream_url')
+    .eq('is_active', true)
+    .not('source_page_url', 'is', null)
+    .neq('source_page_url', '')
+    .or('stream_status.is.null,stream_status.eq.pending')
+
+  if (error || !movies || movies.length === 0) return
+
+  const needExtraction = movies.filter(m => !m.active_stream_url)
+  if (needExtraction.length === 0) return
+
+  const movieIds = needExtraction.map(m => m.id)
+  const { data: existingJobs } = await supabase
+    .from('jobs')
+    .select('movie_id')
+    .in('movie_id', movieIds)
+    .in('status', ['pending', 'processing', 'retrying'])
+
+  const existingJobMovies = new Set((existingJobs || []).map(j => j.movie_id))
+
+  const newJobs = needExtraction
+    .filter(m => !existingJobMovies.has(m.id))
+    .map(m => ({
+      job_type: 'extract',
+      movie_id: m.id,
+      content_type: 'movie',
+      source_url: m.source_page_url,
+      status: 'pending',
+      priority: 3,
+      max_attempts: 3,
+    }))
+
+  if (newJobs.length > 0) {
+    await supabase.from('jobs').insert(newJobs)
+    console.log(`[SCHEDULER] Created ${newJobs.length} movie extraction jobs`)
   }
 }
 
@@ -309,6 +284,7 @@ async function main() {
         await recoverStaleJobs(supabase)
         await processNewExtractions(supabase)
         await processRefreshJobs(supabase)
+        await processMovieExtractions(supabase)
         lastSchedulerRun = now
       }
 

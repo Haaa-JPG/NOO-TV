@@ -1,17 +1,6 @@
-const { chromium } = require('playwright')
 const { createClient } = require('@supabase/supabase-js')
+const { scrapeM3u8, isSourceUrl } = require('./services/scraper')
 
-const BROWSER_ARGS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-gpu',
-  '--disable-dev-shm-usage',
-  '--no-first-run',
-  '--no-zygote',
-  '--single-process',
-]
-
-const SIX_HOURS_MS = 6 * 60 * 60 * 1000
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '1', 10)
 
 function getSupabase() {
@@ -24,47 +13,6 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-function isSourceUrl(url) {
-  if (!url) return false
-  return /3isk|qrmzi|krmzi|anaplayer/i.test(url)
-}
-
-async function extractM3u8(page, sourceUrl) {
-  let m3u8Url = null
-
-  const m3u8Promise = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('Timeout: m3u8 not found in 45s'))
-    }, 45000)
-
-    page.on('response', (response) => {
-      const url = response.url()
-      if (url.includes('.m3u8') && !m3u8Url) {
-        m3u8Url = url
-        clearTimeout(timer)
-        resolve(url)
-      }
-    })
-  })
-
-  await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 25000 })
-  await page.waitForTimeout(3000)
-
-  try {
-    const playBtn = await page.$('#playImage')
-    if (playBtn) await playBtn.click({ timeout: 3000 })
-  } catch {}
-
-  try {
-    const serverItems = await page.$$('#server-list li')
-    if (serverItems.length > 0) {
-      await serverItems[0].click({ timeout: 3000 })
-    }
-  } catch {}
-
-  return m3u8Promise
-}
-
 async function main() {
   console.log('=== NOO TV Link Updater (Jobs-based) ===')
   console.log('Time:', new Date().toISOString())
@@ -73,7 +21,7 @@ async function main() {
 
   const { data: episodes, error: fetchError } = await supabase
     .from('episodes')
-    .select('id, embed_url, last_refreshed, stream_status')
+    .select('id, embed_url, source_url, active_stream_url, last_refreshed, stream_status')
     .eq('is_active', true)
 
   if (fetchError) {
@@ -88,10 +36,10 @@ async function main() {
     return
   }
 
-  const now = Date.now()
   const needsRefresh = episodes.filter((ep) => {
-    if (!ep.embed_url) return true
-    if (!isSourceUrl(ep.embed_url)) return false
+    const streamUrl = ep.active_stream_url || ep.embed_url
+    if (!streamUrl) return true
+    if (!isSourceUrl(streamUrl)) return false
     if (ep.stream_status === 'completed') return false
     if (ep.stream_status === 'processing') return false
     return true
@@ -106,6 +54,7 @@ async function main() {
 
   let createdJobs = 0
   for (const ep of needsRefresh) {
+    const sourceUrl = ep.source_url || ep.embed_url
     const { data: existing } = await supabase
       .from('jobs')
       .select('id')
@@ -119,7 +68,7 @@ async function main() {
         job_type: 'extract',
         episode_id: ep.id,
         content_type: 'episode',
-        source_url: ep.embed_url,
+        source_url: sourceUrl,
         status: 'pending',
         priority: 5,
         max_attempts: 3,
@@ -144,28 +93,20 @@ async function main() {
     console.log('  Episode:', job.episode_id)
     console.log('  URL:', job.source_url?.substring(0, 80))
 
-    let browser = null
     try {
-      browser = await chromium.launch({ headless: true, args: BROWSER_ARGS })
-      const context = await browser.newContext({
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      })
-      const page = await context.newPage()
+      const { m3u8Url, expiresAt } = await scrapeM3u8(job.source_url)
 
-      const m3u8 = await extractM3u8(page, job.source_url)
-
-      await page.close()
-      await context.close()
-
-      if (m3u8) {
-        console.log('  Got m3u8:', m3u8.substring(0, 100))
-        await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8 })
+      if (m3u8Url) {
+        console.log('  Got m3u8:', m3u8Url.substring(0, 100))
+        await supabase.rpc('complete_job', { p_job_id: job.id, p_result_url: m3u8Url })
 
         if (job.episode_id) {
           await supabase
             .from('episodes')
             .update({
-              embed_url: m3u8,
+              active_stream_url: m3u8Url,
+              embed_url: m3u8Url,
+              expires_at: expiresAt,
               last_refreshed: new Date().toISOString(),
               stream_status: 'completed',
               last_error: null,
@@ -184,10 +125,6 @@ async function main() {
       console.error('  Error:', err.message)
       await supabase.rpc('fail_job', { p_job_id: job.id, p_error: err.message })
       failed++
-    } finally {
-      if (browser) {
-        try { await browser.close() } catch {}
-      }
     }
   }
 

@@ -234,8 +234,8 @@ export default function WatchMovie() {
 
       <div className="pt-16">
         <div className="relative bg-black w-full" style={{ aspectRatio: '16 / 9' }}>
-          {movie.embed_url ? (
-            <VideoPlayer url={movie.embed_url} title={movie.title} contentId={movie.id} contentType="movie" className="absolute inset-0 w-full h-full" />
+          {(movie.active_stream_url || movie.embed_url) ? (
+            <VideoPlayer url={movie.embed_url} activeStreamUrl={movie.active_stream_url} title={movie.title} contentId={movie.id} contentType="movie" className="absolute inset-0 w-full h-full" />
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
               <p className="text-gray-400">الفيديو غير متوفر حالياً</p>

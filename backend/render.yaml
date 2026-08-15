@@ -31,3 +31,22 @@ services:
         sync: false
       - key: WORKER_CONCURRENCY
         value: "1"
+  - type: worker
+    name: noo-tv-cron
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx playwright install --with-deps chromium
+    startCommand: node cron/link-refresh.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: CRON_CONCURRENCY
+        value: "5"
+      - key: CRON_SCHEDULE
+        value: "0 */2 * * *"
+      - key: STREAM_REFRESH_WINDOW_SECONDS
+        value: "1800"

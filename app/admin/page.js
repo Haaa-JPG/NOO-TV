@@ -88,6 +88,7 @@ const emptyMovieForm = () => ({
   title: '',
   description: '',
   embed_url: '',
+  source_page_url: '',
   thumbnail: '',
   banner: '',
   category: '',
@@ -303,6 +304,13 @@ export default function AdminPanel() {
     e.preventDefault()
     try {
       const dataToSave = { ...movieForm }
+      if (!dataToSave.source_page_url) dataToSave.source_page_url = null
+      if (isSourcePageUrl(dataToSave.embed_url) && !dataToSave.source_page_url) {
+        dataToSave.source_page_url = dataToSave.embed_url
+      }
+      if (dataToSave.source_page_url && !dataToSave.active_stream_url) {
+        dataToSave.stream_status = 'pending'
+      }
       if (editingMovie) {
         const { error } = await supabase
           .from('movies')
@@ -474,14 +482,17 @@ export default function AdminPanel() {
         setShowEpisodeForm(false)
         setEditingEpisode(null)
       } else {
+        const insertData = {
+          ...dataToSave,
+          season_id: expandedSeason.id,
+          stream_status: 'pending',
+        }
+        if (isSourcePageUrl(dataToSave.embed_url)) {
+          insertData.source_url = dataToSave.embed_url
+        }
         const { error } = await supabase
           .from('episodes')
-          .insert([{
-            ...dataToSave,
-            season_id: expandedSeason.id,
-            stream_status: 'pending',
-            source_url: dataToSave.embed_url,
-          }])
+          .insert([insertData])
         if (error) throw error
         toast({ title: 'تم إضافة الحلقة' })
         const nextNum = (episodeForm.episode_number || 0) + 1
@@ -815,15 +826,28 @@ export default function AdminPanel() {
                           required
                         />
                       </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <Label>رابط الصفحة المصدر</Label>
+                        <Label>رابط الصفحة المصدر (دائم)</Label>
+                        <Input
+                          value={movieForm.source_page_url}
+                          onChange={(e) => setMovieForm({ ...movieForm, source_page_url: e.target.value })}
+                          className="bg-black border-gray-700"
+                          placeholder="https://z.3isk.news/video/..."
+                        />
+                        <p className="text-xs text-gray-500 mt-1">الرابط الدائم لصفحة المصدر - يتم تحديث رابط البث تلقائياً</p>
+                      </div>
+                      <div>
+                        <Label>رابط الفيديو (مباشر)</Label>
                         <Input
                           value={movieForm.embed_url}
                           onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
                           className="bg-black border-gray-700"
-                          placeholder="https://z.3isk.news/video/..."
-                          required
+                          placeholder="رابط m3u8 أو YouTube أو صفحة المصدر"
                         />
+                        <p className="text-xs text-gray-500 mt-1">إذا كان رابط مصدر، يتم استخراج رابط البث تلقائياً</p>
                       </div>
                     </div>
 
@@ -966,7 +990,7 @@ export default function AdminPanel() {
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-sm text-gray-500">{movie.views || 0} مشاهدة</p>
-                          <ExpiryBadge embedUrl={movie.embed_url} lastRefreshed={movie.last_refreshed} />
+                          <ExpiryBadge embedUrl={movie.active_stream_url || movie.embed_url} lastRefreshed={movie.last_refreshed} />
                         </div>
                       </div>
                     </div>
@@ -1312,8 +1336,10 @@ export default function AdminPanel() {
 
                               {expandedSeason?.episodes?.map((ep) => {
                                 const streamStatus = ep.stream_status || 'pending'
+                                const streamUrl = ep.active_stream_url || ep.embed_url
+                                const hasSource = ep.source_url && isSourcePageUrl(ep.source_url)
                                 const statusBadge = (() => {
-                                  if (streamStatus === 'completed' && ep.embed_url && !isSourcePageUrl(ep.embed_url)) {
+                                  if (streamStatus === 'completed' && streamUrl && !isSourcePageUrl(streamUrl)) {
                                     return (
                                       <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
                                         ✓ جاهز للمشاهدة
@@ -1341,7 +1367,7 @@ export default function AdminPanel() {
                                       </span>
                                     )
                                   }
-                                  if (ep.embed_url && isSourcePageUrl(ep.embed_url)) {
+                                  if (hasSource && !streamUrl) {
                                     return (
                                       <span className="inline-flex items-center mr-2 text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full">
                                         ⏳ بانتظار الاستخراج
@@ -1363,11 +1389,11 @@ export default function AdminPanel() {
                                       </div>
                                       <div className="flex items-center gap-2 mt-1">
                                         <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
-                                        <ExpiryBadge embedUrl={ep.embed_url} lastRefreshed={ep.last_refreshed} />
+                                        <ExpiryBadge embedUrl={ep.active_stream_url || ep.embed_url} lastRefreshed={ep.last_refreshed} />
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      {(streamStatus === 'failed' || streamStatus === 'pending') && ep.embed_url && isSourcePageUrl(ep.embed_url) && (
+                                      {(streamStatus === 'failed' || streamStatus === 'pending') && (ep.source_url || (ep.embed_url && isSourcePageUrl(ep.embed_url))) && (
                                         <Button
                                           size="sm"
                                           variant="ghost"

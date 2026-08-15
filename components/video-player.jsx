@@ -249,14 +249,16 @@ function SourceExtracting({ url, onExtracted, onError }) {
   )
 }
 
-export default function VideoPlayer({ url, title = '', contentId, contentType }) {
+export default function VideoPlayer({ url, activeStreamUrl, title = '', contentId, contentType }) {
   const [extractedUrl, setExtractedUrl] = useState(null)
 
   const handleExtracted = useCallback((m3u8) => {
     setExtractedUrl(m3u8)
   }, [])
 
-  if (!url) {
+  const resolvedUrl = activeStreamUrl || url
+
+  if (!resolvedUrl) {
     return (
       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
         <p className="text-gray-400">الفيديو غير متوفر حالياً</p>
@@ -264,17 +266,17 @@ export default function VideoPlayer({ url, title = '', contentId, contentType })
     )
   }
 
-  if (isSourcePageUrl(url) && !extractedUrl) {
+  if (isSourcePageUrl(resolvedUrl) && !extractedUrl) {
     return (
       <SourceExtracting
-        url={url}
+        url={resolvedUrl}
         onExtracted={handleExtracted}
         onError={() => {}}
       />
     )
   }
 
-  const playUrl = extractedUrl || url
+  const playUrl = extractedUrl || resolvedUrl
   const result = toEmbedUrl(playUrl)
 
   if (!result) {

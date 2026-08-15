@@ -37,4 +37,4 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm start -- -p ${PORT:-3000}"]
+CMD ["sh", -c "if [ \"$SERVICE_TYPE\" = \"cron\" ]; then node cron/link-refresh.js; elif [ \"$SERVICE_TYPE\" = \"worker\" ]; then node worker.js; else npm start -- -p ${PORT:-3000}; fi"]

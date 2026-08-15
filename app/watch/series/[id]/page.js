@@ -386,8 +386,8 @@ export default function WatchSeries() {
 
       <div className="pt-16">
         <div className="relative bg-black w-full" style={{ aspectRatio: '16 / 9' }}>
-          {selectedEpisode?.embed_url ? (
-            <VideoPlayer url={selectedEpisode.embed_url} title={selectedEpisode.title} contentId={selectedEpisode.id} contentType="episode" className="absolute inset-0 w-full h-full" />
+          {(selectedEpisode?.active_stream_url || selectedEpisode?.embed_url) ? (
+            <VideoPlayer url={selectedEpisode.embed_url} activeStreamUrl={selectedEpisode.active_stream_url} title={selectedEpisode.title} contentId={selectedEpisode.id} contentType="episode" className="absolute inset-0 w-full h-full" />
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
               <p className="text-gray-400">اختر حلقة للمشاهدة</p>
