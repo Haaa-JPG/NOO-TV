@@ -13,10 +13,8 @@ services:
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_URL
-        fromDatabase:
-          name: noo-tv-db
-          property: connectionString
-      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: ENABLE_WORKER
         value: "true"

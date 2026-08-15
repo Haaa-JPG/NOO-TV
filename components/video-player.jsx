@@ -94,25 +94,34 @@ function toEmbedUrl(url) {
 
 function HlsVideo({ url, title }) {
   const videoRef = useRef(null)
+  const hlsRef = useRef(null)
 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
-    let hls = null
+    let destroyed = false
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url
     } else {
       import('hls.js').then(({ default: Hls }) => {
-        hls = new Hls({ maxBufferLength: 30 })
+        if (destroyed) return
+        const hls = new Hls({ maxBufferLength: 30 })
+        hlsRef.current = hls
         hls.loadSource(url)
         hls.attachMedia(video)
         hls.on('error', () => {})
       })
     }
 
-    return () => { if (hls) hls.destroy() }
+    return () => {
+      destroyed = true
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
+    }
   }, [url])
 
   return (

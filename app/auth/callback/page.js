@@ -11,18 +11,35 @@ function CallbackContent() {
 
   useEffect(() => {
     const handleSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-      if (session?.user) {
-        // Make sure a public.users profile exists (covers Google OAuth).
-        await ensureUserProfile(session.user)
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          router.replace('/auth')
+          return
+        }
+
+        if (session?.user) {
+          await ensureUserProfile(session.user)
+        }
+
+        const rawRedirect = searchParams.get('redirect') || searchParams.get('next') || '/'
+        const redirect = (!rawRedirect.startsWith('/') || rawRedirect.startsWith('//')) ? '/' : rawRedirect
+        router.replace(redirect)
+      } catch (err) {
+        console.error('Callback error:', err)
+        router.replace('/auth')
       }
-
-      const redirect = searchParams.get('redirect') || searchParams.get('next') || '/'
-      router.replace(redirect)
     }
 
-    handleSession()
+    const timeout = setTimeout(() => {
+      router.replace('/auth')
+    }, 15000)
+
+    handleSession().finally(() => clearTimeout(timeout))
+
+    return () => clearTimeout(timeout)
   }, [router, searchParams])
 
   return (

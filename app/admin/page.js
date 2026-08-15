@@ -303,6 +303,22 @@ export default function AdminPanel() {
   const handleMovieSubmit = async (e) => {
     e.preventDefault()
     try {
+      if (!movieForm.title || movieForm.title.trim().length === 0) {
+        throw new Error('عنوان الفيلم مطلوب')
+      }
+      if (movieForm.year && (movieForm.year < 1900 || movieForm.year > new Date().getFullYear() + 2)) {
+        throw new Error('سنة الإنتاج غير صحيحة')
+      }
+      if (movieForm.embed_url && movieForm.embed_url.trim()) {
+        try { new URL(movieForm.embed_url) } catch {
+          if (!movieForm.embed_url.startsWith('/')) throw new Error('رابط الفيديو غير صحيح')
+        }
+      }
+      if (movieForm.source_page_url && movieForm.source_page_url.trim()) {
+        try { new URL(movieForm.source_page_url) } catch {
+          throw new Error('رابط الصفحة المصدر غير صحيح')
+        }
+      }
       const dataToSave = { ...movieForm }
       if (!dataToSave.source_page_url) dataToSave.source_page_url = null
       if (isSourcePageUrl(dataToSave.embed_url) && !dataToSave.source_page_url) {

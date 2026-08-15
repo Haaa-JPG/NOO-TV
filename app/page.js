@@ -64,21 +64,38 @@ export default function Home() {
       .limit(12)
     
     if (seriesData) {
-      const seriesWithCounts = await Promise.all(
-        seriesData.map(async (show) => {
-          const { data: seasons } = await supabase
-            .from('seasons')
-            .select('id')
-            .eq('series_id', show.id)
-          if (!seasons || seasons.length === 0) return { ...show, episode_count: 0 }
-          const seasonIds = seasons.map(s => s.id)
-          const { count } = await supabase
-            .from('episodes')
-            .select('*', { count: 'exact', head: true })
-            .in('season_id', seasonIds)
-          return { ...show, episode_count: count || 0 }
+      const seriesIds = seriesData.map(s => s.id)
+      const { data: allSeasons } = await supabase
+        .from('seasons')
+        .select('id, series_id')
+        .in('series_id', seriesIds)
+
+      const seasonMap = {}
+      ;(allSeasons || []).forEach(s => {
+        if (!seasonMap[s.series_id]) seasonMap[s.series_id] = []
+        seasonMap[s.series_id].push(s.id)
+      })
+
+      const allSeasonIds = (allSeasons || []).map(s => s.id)
+      let episodeCounts = {}
+      if (allSeasonIds.length > 0) {
+        const { data: epCounts } = await supabase
+          .from('episodes')
+          .select('season_id')
+          .in('season_id', allSeasonIds)
+          .eq('is_active', true)
+        ;(epCounts || []).forEach(ep => {
+          const seriesId = allSeasons.find(s => s.id === ep.season_id)?.series_id
+          if (seriesId) {
+            episodeCounts[seriesId] = (episodeCounts[seriesId] || 0) + 1
+          }
         })
-      )
+      }
+
+      const seriesWithCounts = seriesData.map(show => ({
+        ...show,
+        episode_count: episodeCounts[show.id] || 0,
+      }))
       setSeries(seriesWithCounts)
     }
 

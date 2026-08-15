@@ -1,5 +1,61 @@
 import { NextResponse } from 'next/server'
 
+const ALLOWED_HOSTS = [
+  'cdnz.quest',
+  'cdnwistia.com',
+  'wistia.ostrovok.ru',
+  'vid.ytimg',
+  'i.ytimg.com',
+  's.muxcdn.com',
+  'test-streams.mux.dev',
+  'cph-p2p-msl.akamaized.net',
+  '.cloudfront.net',
+  '.akamaized.net',
+  '.cdn77.org',
+  '.bunnycdn.com',
+  '.hwcdn.net',
+  '.fastly.net',
+  '.stackpathdns.com',
+]
+
+const BLOCKED_IP_RANGES = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^localhost$/i,
+  /^::1$/,
+  /^\[::1\]$/,
+]
+
+function isAllowedUrl(urlString) {
+  try {
+    const url = new URL(urlString)
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+
+    const hostname = url.hostname.toLowerCase()
+
+    for (const blocked of BLOCKED_IP_RANGES) {
+      if (blocked.test(hostname)) return false
+    }
+
+    for (const host of ALLOWED_HOSTS) {
+      if (host.startsWith('.')) {
+        if (hostname.endsWith(host) || hostname === host.slice(1)) return true
+      } else if (hostname.includes(host)) {
+        return true
+      }
+    }
+
+    return false
+  } catch {
+    return false
+  }
+}
+
 function rewriteM3u8Segments(content, baseUrl) {
   const base = new URL(baseUrl)
   return content.split('\n').map(line => {
@@ -15,16 +71,42 @@ function rewriteM3u8Segments(content, baseUrl) {
   }).join('\n')
 }
 
+const rateLimitMap = new Map()
+
+function checkRateLimit(ip, limit = 60, windowMs = 60000) {
+  const now = Date.now()
+  const record = rateLimitMap.get(ip)
+  if (!record || now - record.start > windowMs) {
+    rateLimitMap.set(ip, { start: now, count: 1 })
+    return true
+  }
+  record.count++
+  if (record.count > limit) return false
+  return true
+}
+
+if (rateLimitMap.size > 10000) {
+  const now = Date.now()
+  for (const [key, val] of rateLimitMap) {
+    if (now - val.start > 60000) rateLimitMap.delete(key)
+  }
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const targetUrl = searchParams.get('url')
+
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+  }
 
   if (!targetUrl) {
     return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 })
   }
 
-  try { new URL(targetUrl) } catch {
-    return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+  if (!isAllowedUrl(targetUrl)) {
+    return NextResponse.json({ error: 'URL not allowed' }, { status: 403 })
   }
 
   try {
@@ -39,7 +121,7 @@ export async function GET(request) {
     if (!response.ok) {
       return new NextResponse(`Upstream error: ${response.status}`, {
         status: response.status,
-        headers: { 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Access-Control-Allow-Origin': window.location.origin },
       })
     }
 
@@ -53,7 +135,7 @@ export async function GET(request) {
         status: 200,
         headers: {
           'Content-Type': 'application/vnd.apple.mpegurl',
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': window.location.origin,
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       })
@@ -61,7 +143,7 @@ export async function GET(request) {
 
     const body = await response.arrayBuffer()
     const headers = new Headers()
-    headers.set('Access-Control-Allow-Origin', '*')
+    headers.set('Access-Control-Allow-Origin', window.location.origin)
     headers.set('Cache-Control', 'public, max-age=3600')
     if (ct) headers.set('Content-Type', ct)
     const cl = response.headers.get('content-length')
@@ -81,7 +163,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': window.location.origin,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Range',
     },

@@ -14,7 +14,11 @@ import Link from 'next/link'
 function AuthContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || searchParams.get('next') || '/'
+  const redirectTo = (() => {
+    const r = searchParams.get('redirect') || searchParams.get('next') || '/'
+    if (!r.startsWith('/') || r.startsWith('//')) return '/'
+    return r
+  })()
   const { toast } = useToast()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -35,6 +39,22 @@ function AuthContent() {
 
         if (data?.user) {
           await ensureUserProfile(data.user)
+
+          const { data: profile } = await supabase
+            .from('users')
+            .select('is_active, is_banned')
+            .eq('id', data.user.id)
+            .maybeSingle()
+
+          if (profile?.is_banned) {
+            await supabase.auth.signOut()
+            throw new Error('تم حظر هذا الحساب')
+          }
+
+          if (profile && profile.is_active === false) {
+            await supabase.auth.signOut()
+            throw new Error('الحساب غير نشط')
+          }
         }
 
         toast({

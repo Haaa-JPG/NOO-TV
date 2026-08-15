@@ -8,8 +8,9 @@ const CONCURRENCY = parseInt(process.env.CRON_CONCURRENCY || '5', 10)
 const REFRESH_WINDOW_SECONDS = parseInt(process.env.STREAM_REFRESH_WINDOW_SECONDS || '1800', 10)
 
 function getSupabase() {
+  const { createClient } = require('@supabase/supabase-js')
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) {
     console.error('[CRON] Missing Supabase credentials')
     return null
