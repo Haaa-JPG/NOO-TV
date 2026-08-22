@@ -163,12 +163,6 @@ export default function AdminPanel() {
   const [editingEpisode, setEditingEpisode] = useState(null)
   const [episodeDefaults, setEpisodeDefaults] = useState({ title: '', thumbnail: '', duration: 0 })
 
-  // Bulk episode generation
-  const [bulkSourceUrl, setBulkSourceUrl] = useState('')
-  const [bulkFrom, setBulkFrom] = useState(1)
-  const [bulkTo, setBulkTo] = useState(10)
-  const [bulkGenerating, setBulkGenerating] = useState(false)
-
   // Categories
   const [categories, setCategories] = useState([])
   const [showCategoryForm, setShowCategoryForm] = useState(false)
@@ -180,9 +174,6 @@ export default function AdminPanel() {
 
   // Complaints
   const [complaints, setComplaints] = useState([])
-
-  // Queue status
-  const [queueStatus, setQueueStatus] = useState(null)
 
   // Stats
   const [stats, setStats] = useState({
@@ -262,26 +253,10 @@ export default function AdminPanel() {
       .order('created_at', { ascending: false })
     if (complaintsData) setComplaints(complaintsData)
 
-    // Load total episodes count + stream status
+    // Load total episodes count
     const { count: episodesCount } = await supabase
       .from('episodes')
       .select('*', { count: 'exact', head: true })
-
-    const [readyCount, pendingCount, failedCount] = await Promise.all([
-      supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'completed'),
-      supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'pending'),
-      supabase.from('episodes').select('*', { count: 'exact', head: true }).eq('stream_status', 'failed'),
-    ])
-
-    // Load queue status
-    try {
-      const EXTRACT_URL = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
-      if (EXTRACT_URL) {
-        const res = await fetch(`${EXTRACT_URL}/api/health`)
-        const data = await res.json()
-        if (data.queue) setQueueStatus({ ...data.queue, worker: data.worker })
-      }
-    } catch {}
 
     // Calculate stats
     setStats({
@@ -292,9 +267,6 @@ export default function AdminPanel() {
       totalViews:
         (moviesData?.reduce((sum, m) => sum + (m.views || 0), 0) || 0) +
         (seriesData?.reduce((sum, s) => sum + (s.views || 0), 0) || 0),
-      readyEpisodes: readyCount?.count || 0,
-      pendingEpisodes: pendingCount?.count || 0,
-      failedEpisodes: failedCount?.count || 0,
     })
   }
 
@@ -539,82 +511,6 @@ export default function AdminPanel() {
     }
   }
 
-  // ============ BULK EPISODE GENERATION ============
-
-  const handleBulkGenerate = async () => {
-    if (!expandedSeason) {
-      toast({ title: 'اختر موسم أولاً', variant: 'destructive' })
-      return
-    }
-    if (!bulkSourceUrl) {
-      toast({ title: 'أدخل رابط المسلسل', variant: 'destructive' })
-      return
-    }
-    if (bulkFrom < 1 || bulkTo < bulkFrom) {
-      toast({ title: 'أرقام الحلقات غير صحيحة', variant: 'destructive' })
-      return
-    }
-
-    setBulkGenerating(true)
-    try {
-      const { data: existingEpisodes } = await supabase
-        .from('episodes')
-        .select('episode_number')
-        .eq('season_id', expandedSeason.id)
-        .order('episode_number', { ascending: false })
-        .limit(1)
-
-      const maxEpisode = existingEpisodes?.length > 0 ? existingEpisodes[0].episode_number : 0
-
-      const url = bulkSourceUrl.trim()
-      const lastNumberMatch = url.match(/(\d+)(?!.*\d)/)
-      if (!lastNumberMatch) {
-        toast({ title: 'لم يتم العثور على رقم في الرابط', variant: 'destructive' })
-        setBulkGenerating(false)
-        return
-      }
-
-      const lastNumber = parseInt(lastNumberMatch[0])
-      const prefix = url.substring(0, url.lastIndexOf(lastNumberMatch[0]))
-      const suffix = url.substring(url.lastIndexOf(lastNumberMatch[0]) + lastNumberMatch[0].length)
-
-      const seriesTitle = manageSeries?.title || ''
-
-      const episodes = []
-      let sortOrder = maxEpisode + 1
-      for (let i = bulkFrom; i <= bulkTo; i++) {
-        const epTitle = seriesTitle || `الحلقة ${sortOrder}`
-        const sourceUrl = `${prefix}${i}${suffix}`
-        episodes.push({
-          season_id: expandedSeason.id,
-          episode_number: sortOrder,
-          title: epTitle,
-          embed_url: sourceUrl,
-          source_url: sourceUrl,
-          thumbnail: episodeDefaults.thumbnail || '',
-          duration: episodeDefaults.duration || 0,
-          display_order: sortOrder,
-          is_active: true,
-          stream_status: 'pending',
-        })
-        sortOrder++
-      }
-
-      const { error } = await supabase.from('episodes').insert(episodes)
-      if (error) throw error
-
-      toast({ title: `تم توليد ${episodes.length} حلقة بنجاح (من ${maxEpisode + 1} إلى ${sortOrder - 1})` })
-      await toggleSeason(expandedSeason.id)
-      setBulkSourceUrl('')
-      setBulkFrom(1)
-      setBulkTo(10)
-    } catch (error) {
-      toast({ title: 'حدث خطأ', description: error.message, variant: 'destructive' })
-    } finally {
-      setBulkGenerating(false)
-    }
-  }
-
   // ============ CATEGORIES ============
 
   const handleCategorySubmit = async (e) => {
@@ -727,64 +623,6 @@ export default function AdminPanel() {
               </CardContent>
             </Card>
           ))}
-        </div>
-
-        {/* Episode + Queue Status */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-gray-400">حالة الحلقات ({stats.totalEpisodes})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  جاهزة: {stats.readyEpisodes || 0}
-                </span>
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                  بانتظار الاستخراج: {stats.pendingEpisodes || 0}
-                </span>
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                  فاشلة: {stats.failedEpisodes || 0}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${queueStatus?.worker?.online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                حالة Worker ({queueStatus?.worker?.online ? 'متصل' : 'غير متصل'})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {queueStatus ? (
-                <div className="flex flex-wrap gap-3">
-                  <span className="inline-flex items-center gap-1 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                    بانتظار: {queueStatus.pending || 0}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    قيد المعالجة: {queueStatus.processing || 0}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-green-500" />
-                    مكتملة: {queueStatus.completed || 0}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-sm">
-                    <span className="w-2 h-2 rounded-full bg-red-500" />
-                    فاشلة: {queueStatus.failed || 0}
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">تعذر الاتصال بالـ Worker</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* Tabs */}
@@ -1127,60 +965,6 @@ export default function AdminPanel() {
                   </Card>
                 )}
 
-                {expandedSeason && (
-                  <Card className="bg-gray-900 border-gray-800 mb-4">
-                    <CardHeader>
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <ListVideo className="w-4 h-4 text-purple-500" />
-                        توليد حلقات بالجملة — الموسم {expandedSeason.season_number || ''}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-col md:flex-row gap-3 items-end">
-                        <div className="flex-1 w-full">
-                          <Label className="text-xs">رابط صفحة المسلسل (يحتوي على رقم الحلقة)</Label>
-                          <Input
-                            value={bulkSourceUrl}
-                            onChange={(e) => setBulkSourceUrl(e.target.value)}
-                            className="bg-black border-gray-700 text-sm"
-                            placeholder="https://z.3isk.news/video/episode-name-season-1-episode-5-watch/"
-                          />
-                        </div>
-                        <div className="w-full md:w-24">
-                          <Label className="text-xs">من حلقة</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={bulkFrom}
-                            onChange={(e) => setBulkFrom(parseInt(e.target.value) || 1)}
-                            className="bg-black border-gray-700 text-sm"
-                          />
-                        </div>
-                        <div className="w-full md:w-24">
-                          <Label className="text-xs">إلى حلقة</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={bulkTo}
-                            onChange={(e) => setBulkTo(parseInt(e.target.value) || 1)}
-                            className="bg-black border-gray-700 text-sm"
-                          />
-                        </div>
-                        <Button
-                          onClick={handleBulkGenerate}
-                          disabled={bulkGenerating}
-                          className="bg-purple-600 hover:bg-purple-700 text-white shrink-0"
-                        >
-                          {bulkGenerating ? 'جاري التوليد...' : <><RefreshCw className="w-4 h-4 ml-1" /> توليد الموسم بالكامل</>}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">
-                        يتم استخراج الرقم من نهاية الرابط واستبداله تلقائياً. مثال: إذا أدخلت رابط يحتوي على "episode-5" وحددت من 1 إلى 10، سيتم توليد روابط من "episode-1" إلى "episode-10".
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-
                 {seasons.length === 0 ? (
                   <p className="text-center text-gray-400 py-10">لا توجد مواسم بعد. أضف الموسم الأول.</p>
                 ) : (
@@ -1351,57 +1135,12 @@ export default function AdminPanel() {
                               )}
 
                               {expandedSeason?.episodes?.map((ep) => {
-                                const streamStatus = ep.stream_status || 'pending'
                                 const streamUrl = ep.active_stream_url || ep.embed_url
-                                const hasSource = ep.source_url && isSourcePageUrl(ep.source_url)
-                                const statusBadge = (() => {
-                                  if (streamStatus === 'completed' && streamUrl && !isSourcePageUrl(streamUrl)) {
-                                    return (
-                                      <span className="inline-flex items-center mr-2 text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded-full">
-                                        ✓ جاهز للمشاهدة
-                                      </span>
-                                    )
-                                  }
-                                  if (streamStatus === 'processing') {
-                                    return (
-                                      <span className="inline-flex items-center mr-2 text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full">
-                                        🔄 جاري الاستخراج
-                                      </span>
-                                    )
-                                  }
-                                  if (streamStatus === 'retrying') {
-                                    return (
-                                      <span className="inline-flex items-center mr-2 text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded-full">
-                                        ⚠ إعادة المحاولة
-                                      </span>
-                                    )
-                                  }
-                                  if (streamStatus === 'failed') {
-                                    return (
-                                      <span className="inline-flex items-center mr-2 text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded-full">
-                                        ✗ فشل الاستخراج
-                                      </span>
-                                    )
-                                  }
-                                  if (hasSource && !streamUrl) {
-                                    return (
-                                      <span className="inline-flex items-center mr-2 text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded-full">
-                                        ⏳ بانتظار الاستخراج
-                                      </span>
-                                    )
-                                  }
-                                  return (
-                                    <span className="inline-flex items-center mr-2 text-xs bg-gray-600/20 text-gray-400 px-2 py-0.5 rounded-full">
-                                      غير محددة
-                                    </span>
-                                  )
-                                })()
                                 return (
                                   <div key={ep.id} className="flex items-center justify-between gap-3 p-3 bg-gray-950 border border-gray-800 rounded-lg">
                                     <div>
                                       <div className="font-semibold text-sm">
                                         الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
-                                        {statusBadge}
                                       </div>
                                       <div className="flex items-center gap-2 mt-1">
                                         <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
@@ -1409,40 +1148,6 @@ export default function AdminPanel() {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      {(streamStatus === 'failed' || streamStatus === 'pending') && (ep.source_url || (ep.embed_url && isSourcePageUrl(ep.embed_url))) && (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={async () => {
-                                            const EXTRACT_URL = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
-                                            if (!EXTRACT_URL) {
-                                              toast({ title: 'Extract API غير مُعد', variant: 'destructive' })
-                                              return
-                                            }
-                                            try {
-                                              const res = await fetch(`${EXTRACT_URL}/api/extract`, {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ action: 'create_jobs', episode_ids: [ep.id] }),
-                                              })
-                                              const data = await res.json()
-                                              if (data.jobs_created > 0) {
-                                                await supabase.from('episodes').update({ stream_status: 'pending', last_error: null }).eq('id', ep.id)
-                                                toast({ title: 'تم إضافة الحلقة في الطابور' })
-                                              } else {
-                                                toast({ title: 'الحلقة لها job نشط بالفعل', variant: 'destructive' })
-                                              }
-                                              await toggleSeason(expandedSeason.id)
-                                            } catch (err) {
-                                              toast({ title: 'حدث خطأ', description: err.message, variant: 'destructive' })
-                                            }
-                                          }}
-                                          title="إعادة المحاولة"
-                                          className="text-yellow-500"
-                                        >
-                                          <RefreshCw className="w-4 h-4" />
-                                        </Button>
-                                      )}
                                       <Button
                                         size="sm"
                                         variant="ghost"
