@@ -16,6 +16,7 @@ const ALLOWED_HOSTS = [
   '.hwcdn.net',
   '.fastly.net',
   '.stackpathdns.com',
+  'ujeklsj.site',
 ]
 
 const BLOCKED_IP_RANGES = [
@@ -110,11 +111,15 @@ export async function GET(request) {
   }
 
   try {
+    const requestHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Referer': new URL(targetUrl).origin,
+    }
+    const range = request.headers.get('range')
+    if (range) requestHeaders['Range'] = range
+
     const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Referer': new URL(targetUrl).origin,
-      },
+      headers: requestHeaders,
       redirect: 'follow',
     })
 
