@@ -34,15 +34,11 @@ const BLOCKED_IP_RANGES = [
 function isAllowedUrl(urlString) {
   try {
     const url = new URL(urlString)
-
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
-
     const hostname = url.hostname.toLowerCase()
-
     for (const blocked of BLOCKED_IP_RANGES) {
       if (blocked.test(hostname)) return false
     }
-
     for (const host of ALLOWED_HOSTS) {
       if (host.startsWith('.')) {
         if (hostname.endsWith(host) || hostname === host.slice(1)) return true
@@ -50,7 +46,6 @@ function isAllowedUrl(urlString) {
         return true
       }
     }
-
     return false
   } catch {
     return false
@@ -126,12 +121,13 @@ export async function GET(request) {
     if (!response.ok) {
       return new NextResponse(`Upstream error: ${response.status}`, {
         status: response.status,
-        headers: { 'Access-Control-Allow-Origin': window.location.origin },
+        headers: { 'Access-Control-Allow-Origin': '*' },
       })
     }
 
     const ct = response.headers.get('content-type') || ''
     const isM3u8 = ct.includes('mpegurl') || ct.includes('m3u8') || /\.m3u8(\?.*)?$/i.test(targetUrl)
+    const isVideo = ct.includes('video/') || /\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(targetUrl)
 
     if (isM3u8) {
       const text = await response.text()
@@ -140,16 +136,14 @@ export async function GET(request) {
         status: 200,
         headers: {
           'Content-Type': 'application/vnd.apple.mpegurl',
-          'Access-Control-Allow-Origin': window.location.origin,
+          'Access-Control-Allow-Origin': '*',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       })
     }
 
-    const body = await response.arrayBuffer()
     const headers = new Headers()
-    headers.set('Access-Control-Allow-Origin', window.location.origin)
-    headers.set('Cache-Control', 'public, max-age=3600')
+    headers.set('Access-Control-Allow-Origin', '*')
     if (ct) headers.set('Content-Type', ct)
     const cl = response.headers.get('content-length')
     if (cl) headers.set('Content-Length', cl)
@@ -158,6 +152,14 @@ export async function GET(request) {
     const ar = response.headers.get('accept-ranges')
     if (ar) headers.set('Accept-Ranges', ar)
 
+    if (isVideo && response.body) {
+      return new NextResponse(response.body, {
+        status: range ? 206 : 200,
+        headers,
+      })
+    }
+
+    const body = await response.arrayBuffer()
     return new NextResponse(body, { status: 200, headers })
   } catch (error) {
     return NextResponse.json({ error: 'Proxy failed', details: error.message }, { status: 500 })
@@ -168,7 +170,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': window.location.origin,
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Range',
     },
