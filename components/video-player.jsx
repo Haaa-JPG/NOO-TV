@@ -92,7 +92,7 @@ function toEmbedUrl(url) {
   )
 }
 
-function HlsVideo({ url, title }) {
+function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
 
@@ -123,6 +123,40 @@ function HlsVideo({ url, title }) {
       }
     }
   }, [url])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !initialTime) return
+    const seek = () => {
+      if (video.duration && video.duration > 0) {
+        video.currentTime = initialTime
+      }
+    }
+    video.addEventListener('loadedmetadata', seek)
+    return () => video.removeEventListener('loadedmetadata', seek)
+  }, [initialTime])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !onProgress) return
+    let lastSave = 0
+    const handler = () => {
+      const now = Date.now()
+      if (now - lastSave > 10000) {
+        lastSave = now
+        onProgress(Math.floor(video.currentTime), Math.floor(video.duration || 0))
+      }
+    }
+    const handleEnded = () => {
+      onProgress(0, Math.floor(video.duration || 0), true)
+    }
+    video.addEventListener('timeupdate', handler)
+    video.addEventListener('ended', handleEnded)
+    return () => {
+      video.removeEventListener('timeupdate', handler)
+      video.removeEventListener('ended', handleEnded)
+    }
+  }, [onProgress])
 
   return (
     <video
@@ -258,7 +292,57 @@ function SourceExtracting({ url, onExtracted, onError }) {
   )
 }
 
-export default function VideoPlayer({ url, activeStreamUrl, title = '', contentId, contentType }) {
+function DirectVideo({ src, title, initialTime = 0, onProgress }) {
+  const videoRef = useRef(null)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !initialTime) return
+    const seek = () => {
+      if (video.duration && video.duration > 0) {
+        video.currentTime = initialTime
+      }
+    }
+    video.addEventListener('loadedmetadata', seek)
+    return () => video.removeEventListener('loadedmetadata', seek)
+  }, [initialTime])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !onProgress) return
+    let lastSave = 0
+    const handler = () => {
+      const now = Date.now()
+      if (now - lastSave > 10000) {
+        lastSave = now
+        onProgress(Math.floor(video.currentTime), Math.floor(video.duration || 0))
+      }
+    }
+    const handleEnded = () => {
+      onProgress(0, Math.floor(video.duration || 0), true)
+    }
+    video.addEventListener('timeupdate', handler)
+    video.addEventListener('ended', handleEnded)
+    return () => {
+      video.removeEventListener('timeupdate', handler)
+      video.removeEventListener('ended', handleEnded)
+    }
+  }, [onProgress])
+
+  return (
+    <video
+      ref={videoRef}
+      src={src}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-contain bg-black"
+      title={title}
+    />
+  )
+}
+
+export default function VideoPlayer({ url, activeStreamUrl, title = '', contentId, contentType, initialTime = 0, onProgress }) {
   const [extractedUrl, setExtractedUrl] = useState(null)
 
   const handleExtracted = useCallback((m3u8) => {
@@ -298,20 +382,13 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (result.type === 'hls') {
     const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
-    return <HlsVideo url={src} title={title} />
+    return <HlsVideo url={src} title={title} initialTime={initialTime} onProgress={onProgress} />
   }
 
   if (result.type === 'video') {
     const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
     return (
-      <video
-        src={src}
-        controls
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
+      <DirectVideo src={src} title={title} initialTime={initialTime} onProgress={onProgress} />
     )
   }
 

@@ -31,6 +31,7 @@ export default function WatchMovie() {
   const [commentLikes, setCommentLikes] = useState({})
   const [movieLike, setMovieLike] = useState(null)
   const [showFullDesc, setShowFullDesc] = useState(false)
+  const [resumeTime, setResumeTime] = useState(0)
 
   useEffect(() => {
     loadMovie()
@@ -55,11 +56,30 @@ export default function WatchMovie() {
   }
 
   const recordWatchHistory = async (userId) => {
-    await supabase.from('watch_history').insert({
-      user_id: userId,
-      content_id: params.id,
-      content_type: 'movie',
-    })
+    const { data: existing } = await supabase
+      .from('watch_history')
+      .select('id, watched_time, duration')
+      .eq('user_id', userId)
+      .eq('content_id', params.id)
+      .eq('content_type', 'movie')
+      .order('watched_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (existing) {
+      if (existing.watched_time > 0) {
+        setResumeTime(existing.watched_time)
+      }
+      await supabase.from('watch_history').update({
+        watched_at: new Date().toISOString()
+      }).eq('id', existing.id)
+    } else {
+      await supabase.from('watch_history').insert({
+        user_id: userId,
+        content_id: params.id,
+        content_type: 'movie',
+      })
+    }
   }
 
   const loadMovie = async () => {
@@ -213,6 +233,25 @@ export default function WatchMovie() {
     toast({ title: 'تم إضافة التعليق' })
   }
 
+  const handleVideoProgress = async (currentTime, duration, ended = false) => {
+    if (!user) return
+    const watchedTime = ended ? 0 : currentTime
+    const { data: existing } = await supabase
+      .from('watch_history')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('content_id', params.id)
+      .eq('content_type', 'movie')
+      .maybeSingle()
+    if (existing) {
+      await supabase.from('watch_history').update({
+        watched_time: watchedTime,
+        duration,
+        watched_at: new Date().toISOString()
+      }).eq('id', existing.id)
+    }
+  }
+
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-white text-2xl">جاري التحميل...</div></div>
   if (!movie) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-white text-2xl">الفيلم غير موجود</div></div>
 
@@ -235,7 +274,7 @@ export default function WatchMovie() {
       <div className="pt-16">
         <div className="relative bg-black w-full" style={{ aspectRatio: '16 / 9' }}>
           {(movie.active_stream_url || movie.embed_url) ? (
-            <VideoPlayer url={movie.embed_url} activeStreamUrl={movie.active_stream_url} title={movie.title} contentId={movie.id} contentType="movie" className="absolute inset-0 w-full h-full" />
+            <VideoPlayer url={movie.embed_url} activeStreamUrl={movie.active_stream_url} title={movie.title} contentId={movie.id} contentType="movie" initialTime={resumeTime} onProgress={handleVideoProgress} className="absolute inset-0 w-full h-full" />
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
               <p className="text-gray-400">الفيديو غير متوفر حالياً</p>

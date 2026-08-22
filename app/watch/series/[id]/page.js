@@ -7,7 +7,7 @@ import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo, ThumbsUp, ThumbsDown, ChevronDown, Disc } from 'lucide-react'
+import { Heart, Star, ArrowRight, MessageCircle, Play, ListVideo, ThumbsUp, ThumbsDown, ChevronDown, Disc, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 import VideoPlayer from '@/components/video-player'
@@ -35,6 +35,8 @@ export default function WatchSeries() {
   const [episodeLike, setEpisodeLike] = useState(null)
   const [episodeLikeCounts, setEpisodeLikeCounts] = useState({ likes: 0, dislikes: 0 })
   const [showFullDesc, setShowFullDesc] = useState(false)
+  const [episodeProgress, setEpisodeProgress] = useState({})
+  const [resumeTime, setResumeTime] = useState(0)
 
   useEffect(() => {
     loadSeries()
@@ -115,6 +117,37 @@ export default function WatchSeries() {
     }))
 
     setSeasons(withEpisodes)
+
+    if (user) {
+      const { data: history } = await supabase
+        .from('watch_history')
+        .select('episode_id, watched_time, duration, watched_at')
+        .eq('user_id', user.id)
+        .eq('content_type', 'episode')
+        .order('watched_at', { ascending: false })
+
+      const progressMap = {}
+      const historyList = history || []
+      historyList.forEach(h => {
+        if (h.episode_id && h.watched_time > 0) {
+          progressMap[h.episode_id] = { time: h.watched_time, duration: h.duration || 0 }
+        }
+      })
+      setEpisodeProgress(progressMap)
+
+      if (historyList.length > 0) {
+        const lastEpId = historyList[0].episode_id
+        for (const s of withEpisodes) {
+          const found = s.episodes.find(e => e.id === lastEpId)
+          if (found) {
+            setSelectedSeason(s)
+            setSelectedEpisode(found)
+            setResumeTime(historyList[0].watched_time || 0)
+            return
+          }
+        }
+      }
+    }
 
     const firstSeason = withEpisodes.find((s) => s.episodes.length > 0)
     if (firstSeason) {
@@ -262,6 +295,7 @@ export default function WatchSeries() {
   const startEpisode = async (episode) => {
     setSelectedEpisode(episode)
     setEpisodeLike(null)
+    setResumeTime(episodeProgress[episode.id]?.time || 0)
     if (user) {
       await supabase.from('watch_history').insert({
         user_id: user.id,
@@ -288,6 +322,40 @@ export default function WatchSeries() {
       await supabase.rpc('increment_episode_views', { ep_id: episode.id })
     }
     loadEpisodeLikeForEpisode(episode.id)
+  }
+
+  const handleVideoProgress = async (currentTime, duration, ended = false) => {
+    if (!user || !selectedEpisode) return
+    const epId = selectedEpisode.id
+    const watchedTime = ended ? 0 : currentTime
+
+    const { data: existing } = await supabase
+      .from('watch_history')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('episode_id', epId)
+      .maybeSingle()
+
+    if (existing) {
+      await supabase.from('watch_history').update({
+        watched_time: watchedTime,
+        duration,
+        watched_at: new Date().toISOString()
+      }).eq('id', existing.id)
+    } else {
+      await supabase.from('watch_history').insert({
+        user_id: user.id,
+        content_id: epId,
+        content_type: 'episode',
+        episode_id: epId,
+        watched_time: watchedTime,
+        duration
+      })
+    }
+    setEpisodeProgress(prev => ({
+      ...prev,
+      [epId]: { time: watchedTime, duration }
+    }))
   }
 
   const totalEpisodes = () => seasons.reduce((sum, s) => sum + (s.episodes?.length || 0), 0)
@@ -387,7 +455,7 @@ export default function WatchSeries() {
       <div className="pt-16">
         <div className="relative bg-black w-full" style={{ aspectRatio: '16 / 9' }}>
           {(selectedEpisode?.active_stream_url || selectedEpisode?.embed_url) ? (
-            <VideoPlayer url={selectedEpisode.embed_url} activeStreamUrl={selectedEpisode.active_stream_url} title={selectedEpisode.title} contentId={selectedEpisode.id} contentType="episode" className="absolute inset-0 w-full h-full" />
+            <VideoPlayer url={selectedEpisode.embed_url} activeStreamUrl={selectedEpisode.active_stream_url} title={selectedEpisode.title} contentId={selectedEpisode.id} contentType="episode" initialTime={resumeTime} onProgress={handleVideoProgress} className="absolute inset-0 w-full h-full" />
           ) : (
             <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
               <p className="text-gray-400">اختر حلقة للمشاهدة</p>
@@ -488,25 +556,40 @@ export default function WatchSeries() {
                         {selectedSeason.episodes.length === 0 ? (
                           <p className="text-gray-400 text-center py-8">لا توجد حلقات في هذا الموسم</p>
                         ) : (
-                          selectedSeason.episodes.map((ep) => (
-                            <button
-                              key={ep.id}
-                              onClick={() => startEpisode(ep)}
-                              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition text-right ${
-                                selectedEpisode?.id === ep.id
-                                  ? 'border-red-600 bg-red-600/10'
-                                  : 'border-gray-800 hover:border-gray-600 bg-gray-950'
-                              }`}
-                            >
-                              <Play className="w-4 h-4 shrink-0 text-red-600" />
-                              <div className="flex-1 text-right">
-                                <div className="font-semibold text-sm">
-                                  الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
+                          selectedSeason.episodes.map((ep) => {
+                            const progress = episodeProgress[ep.id]
+                            const pct = progress && progress.duration > 0 ? Math.min(100, Math.round((progress.time / progress.duration) * 100)) : 0
+                            return (
+                              <button
+                                key={ep.id}
+                                onClick={() => startEpisode(ep)}
+                                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition text-right ${
+                                  selectedEpisode?.id === ep.id
+                                    ? 'border-red-600 bg-red-600/10'
+                                    : 'border-gray-800 hover:border-gray-600 bg-gray-950'
+                                }`}
+                              >
+                                <Play className="w-4 h-4 shrink-0 text-red-600" />
+                                <div className="flex-1 text-right">
+                                  <div className="font-semibold text-sm">
+                                    الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
+                                  </div>
+                                  {progress && progress.time > 0 && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
+                                        <div className="h-full bg-red-600 rounded-full" style={{ width: `${pct}%` }} />
+                                      </div>
+                                      <span className="text-[10px] text-gray-500 shrink-0 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        {Math.floor(progress.time / 60)}:{String(progress.time % 60).padStart(2, '0')}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                              <span className="text-xs text-gray-500 shrink-0">{ep.views || 0} مشاهدة</span>
-                            </button>
-                          ))
+                                <span className="text-xs text-gray-500 shrink-0">{ep.views || 0} مشاهدة</span>
+                              </button>
+                            )
+                          })
                         )}
                       </div>
                     )}
