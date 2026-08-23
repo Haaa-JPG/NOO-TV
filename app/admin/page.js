@@ -546,7 +546,7 @@ export default function AdminPanel() {
         const num = ep.episode_number || ep.number || ep.num || (i + 1)
         const url = ep.embed_url || ep.url || ep.link || ep.src || ''
         const seriesTitle = ep.title || ep.name || ep.title_ar || ''
-        const epTitle = seriesTitle ? `${seriesTitle} - الحلقة ${num}` : `الحلقة ${num}`
+        const epTitle = seriesTitle || `الحلقة ${num}`
         return {
           season_id: expandedSeason.id,
           episode_number: num,
