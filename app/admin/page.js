@@ -1933,28 +1933,108 @@ export default function AdminPanel() {
                     {watermarkUrl && (
                       <>
                         <div>
-                          <Label className="text-xs text-gray-400 mb-1.5 block">مكان الشعار</Label>
-                          <div className="grid grid-cols-3 gap-2 max-w-[240px]">
-                            {[
-                              { val: 'top-left', label: 'أعلى يسار' },
-                              { val: 'top-center', label: 'أعلى وسط' },
-                              { val: 'top-right', label: 'أعلى يمين' },
-                              { val: 'bottom-left', label: 'أسفل يسار' },
-                              { val: 'bottom-center', label: 'أسفل وسط' },
-                              { val: 'bottom-right', label: 'أسفل يمين' },
-                            ].map(p => (
-                              <button
-                                key={p.val}
-                                onClick={() => setWatermarkPosition(p.val)}
-                                className={`text-[11px] py-1.5 px-2 rounded-lg border transition ${
-                                  watermarkPosition === p.val
-                                    ? 'bg-red-600 border-red-500 text-white'
-                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-                                }`}
-                              >
-                                {p.label}
-                              </button>
-                            ))}
+                          <Label className="text-xs text-gray-400 mb-1.5 block">حرّك الشعار بالسحب، وغيّر الحجم من الزاوية</Label>
+                          <div
+                            ref={(el) => {
+                              if (el) el._wmEl = el
+                            }}
+                            className="relative bg-gray-800 rounded-lg border border-gray-700 w-full max-w-lg overflow-hidden cursor-crosshair"
+                            style={{ aspectRatio: '16/9' }}
+                            onMouseDown={(e) => {
+                              const box = e.currentTarget
+                              const img = box.querySelector('img[data-wm="true"]')
+                              if (!img) return
+                              const boxRect = box.getBoundingClientRect()
+                              const imgRect = img.getBoundingClientRect()
+
+                              const isResizeHandle = (
+                                e.clientX > imgRect.right - 12 && e.clientY > imgRect.bottom - 12
+                              )
+
+                              if (isResizeHandle) {
+                                const startW = parseInt(watermarkSize)
+                                const startX = e.clientX
+                                const startBoxW = boxRect.width
+                                const onMove = (ev) => {
+                                  const dx = ev.clientX - startX
+                                  const newW = Math.max(20, Math.min(startW + (dx / startBoxW) * 200, 300))
+                                  setWatermarkSize(String(Math.round(newW)))
+                                }
+                                const onUp = () => {
+                                  document.removeEventListener('mousemove', onMove)
+                                  document.removeEventListener('mouseup', onUp)
+                                }
+                                document.addEventListener('mousemove', onMove)
+                                document.addEventListener('mouseup', onUp)
+                              } else {
+                                const startLeft = imgRect.left - boxRect.left
+                                const startTop = imgRect.top - boxRect.top
+                                const startX = e.clientX
+                                const startY = e.clientY
+                                const onMove = (ev) => {
+                                  const dx = ev.clientX - startX
+                                  const dy = ev.clientY - startY
+                                  const newLeft = Math.max(0, Math.min(startLeft + dx, boxRect.width - imgRect.width))
+                                  const newTop = Math.max(0, Math.min(startTop + dy, boxRect.height - imgRect.height))
+                                  img.style.left = newLeft + 'px'
+                                  img.style.top = newTop + 'px'
+                                  img.style.right = 'auto'
+                                  img.style.bottom = 'auto'
+                                  img.style.transform = 'none'
+
+                                  const pctX = (newLeft / (boxRect.width - imgRect.width)) * 100
+                                  const pctY = (newTop / (boxRect.height - imgRect.height)) * 100
+                                  let pos = ''
+                                  if (pctY < 33) pos += 'top'
+                                  else if (pctY > 67) pos += 'bottom'
+                                  else pos += 'middle'
+                                  pos += '-'
+                                  if (pctX < 33) pos += 'left'
+                                  else if (pctX > 67) pos += 'right'
+                                  else pos += 'center'
+                                  const mapping = {
+                                    'top-left': 'top-left', 'top-center': 'top-center', 'top-right': 'top-right',
+                                    'middle-left': 'top-left', 'middle-center': 'top-center', 'middle-right': 'top-right',
+                                    'bottom-left': 'bottom-left', 'bottom-center': 'bottom-center', 'bottom-right': 'bottom-right',
+                                  }
+                                  setWatermarkPosition(mapping[pos] || 'top-right')
+                                }
+                                const onUp = () => {
+                                  document.removeEventListener('mousemove', onMove)
+                                  document.removeEventListener('mouseup', onUp)
+                                }
+                                document.addEventListener('mousemove', onMove)
+                                document.addEventListener('mouseup', onUp)
+                              }
+                            }}
+                          >
+                            <img
+                              data-wm="true"
+                              src={watermarkUrl}
+                              alt="watermark"
+                              draggable={false}
+                              style={{
+                                width: `${Math.min(watermarkSize, 150)}px`,
+                                opacity: watermarkOpacity,
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                cursor: 'move',
+                              }}
+                              className="select-none"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs pointer-events-none">اسحب الشعار لتغيير مكانه</div>
+
+                            {/* Resize handle indicator */}
+                            <div
+                              className="absolute w-3 h-3 border-2 border-white/50 rounded-sm pointer-events-none"
+                              style={{
+                                position: 'absolute',
+                                bottom: 5,
+                                right: 5,
+                                cursor: 'nwse-resize',
+                              }}
+                            />
                           </div>
                         </div>
 
@@ -1985,23 +2065,28 @@ export default function AdminPanel() {
                         </div>
 
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">معاينة الموقع:</p>
-                          <div className="relative bg-gray-800 rounded-lg border border-gray-700 w-full max-w-md" style={{ aspectRatio: '16/9' }}>
-                            <div
-                              className="absolute"
-                              style={{
-                                ...(watermarkPosition.includes('top') ? { top: 8 } : { bottom: 8 }),
-                                ...(watermarkPosition.includes('left') ? { left: 8 } : watermarkPosition.includes('right') ? { right: 8 } : { left: '50%', transform: 'translateX(-50%)' }),
-                              }}
-                            >
-                              <img
-                                src={watermarkUrl}
-                                alt="watermark"
-                                style={{ width: `${Math.min(watermarkSize, 100)}px`, opacity: watermarkOpacity }}
-                                className="pointer-events-none"
-                              />
-                            </div>
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs">معاينة الفيديو</div>
+                          <Label className="text-xs text-gray-400 mb-1.5 block">أو اختر مكان جاهز:</Label>
+                          <div className="grid grid-cols-3 gap-1.5 max-w-[200px]">
+                            {[
+                              { val: 'top-left', label: '▲◄' },
+                              { val: 'top-center', label: '▲■' },
+                              { val: 'top-right', label: '▲►' },
+                              { val: 'bottom-left', label: '▼◄' },
+                              { val: 'bottom-center', label: '▼■' },
+                              { val: 'bottom-right', label: '▼►' },
+                            ].map(p => (
+                              <button
+                                key={p.val}
+                                onClick={() => setWatermarkPosition(p.val)}
+                                className={`text-[11px] py-1.5 px-2 rounded-lg border transition ${
+                                  watermarkPosition === p.val
+                                    ? 'bg-red-600 border-red-500 text-white'
+                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
                           </div>
                         </div>
                       </>
