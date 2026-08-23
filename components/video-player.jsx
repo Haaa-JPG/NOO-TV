@@ -397,7 +397,6 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const [introUrl, setIntroUrl] = useState(null)
   const [introChecked, setIntroChecked] = useState(false)
   const [introEnded, setIntroEnded] = useState(false)
-  const [iframeClicked, setIframeClicked] = useState(false)
   const introRef = useRef(null)
   const prevUrlRef = useRef(null)
 
@@ -508,21 +507,13 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   }
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-black overflow-hidden">
-      <div className="relative w-full h-full">
-        <iframe
-          src={result.embed}
-          className="absolute top-[-55px] left-0 w-full h-[calc(100%+55px)] border-0"
-          title={title}
-          allowFullScreen
-        />
-        {!iframeClicked && (
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            onClick={() => setIframeClicked(true)}
-          />
-        )}
-      </div>
-    </div>
+    <iframe
+      src={result.embed}
+      className="absolute inset-0 w-full h-full bg-black"
+      title={title}
+      allowFullScreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
   )
 }

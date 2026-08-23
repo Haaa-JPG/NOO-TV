@@ -20,12 +20,6 @@ function sanitize(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
-function extractIframeSrc(value) {
-  if (!value) return value
-  const m = value.match(/<iframe[^>]*\ssrc\s*=\s*["']([^"']+)["']/i)
-  return m ? m[1] : value
-}
-
 function mmssToSeconds(val) {
   if (!val || typeof val !== 'string') return 0
   val = val.trim()
@@ -422,9 +416,8 @@ export default function AdminPanel() {
         throw new Error('سنة الإنتاج غير صحيحة')
       }
       if (movieForm.embed_url && movieForm.embed_url.trim()) {
-        const extracted = extractIframeSrc(movieForm.embed_url)
-        try { new URL(extracted) } catch {
-          if (!extracted.startsWith('/')) throw new Error('رابط الفيديو غير صحيح')
+        try { new URL(movieForm.embed_url) } catch {
+          if (!movieForm.embed_url.startsWith('/')) throw new Error('رابط الفيديو غير صحيح')
         }
       }
       if (movieForm.source_page_url && movieForm.source_page_url.trim()) {
@@ -433,7 +426,6 @@ export default function AdminPanel() {
         }
       }
       const dataToSave = { ...movieForm }
-      dataToSave.embed_url = extractIframeSrc(dataToSave.embed_url)
       if (!dataToSave.source_page_url) dataToSave.source_page_url = null
       if (isSourcePageUrl(dataToSave.embed_url) && !dataToSave.source_page_url) {
         dataToSave.source_page_url = dataToSave.embed_url
@@ -598,7 +590,6 @@ export default function AdminPanel() {
     try {
       const dataToSave = {
         ...episodeForm,
-        embed_url: extractIframeSrc(episodeForm.embed_url),
         title: episodeForm.title || episodeDefaults.title,
         thumbnail: episodeForm.thumbnail || episodeDefaults.thumbnail,
         duration: episodeForm.duration || episodeDefaults.duration,
