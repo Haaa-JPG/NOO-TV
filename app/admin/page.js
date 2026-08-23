@@ -20,6 +20,25 @@ function sanitize(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
+function mmssToSeconds(val) {
+  if (!val || typeof val !== 'string') return 0
+  val = val.trim()
+  if (val.includes(':')) {
+    const parts = val.split(':')
+    const min = parseInt(parts[0]) || 0
+    const sec = parseInt(parts[1]) || 0
+    return min * 60 + sec
+  }
+  return parseFloat(val) || 0
+}
+
+function secondsToMmss(secs) {
+  if (!secs || secs <= 0) return ''
+  const m = Math.floor(secs / 60)
+  const s = Math.floor(secs % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 const SOURCE_PAGE_PATTERNS = [
   /z\.3isk\.news/i,
   /qrmzi\.tv/i,
@@ -189,6 +208,8 @@ export default function AdminPanel() {
   const [heroItems, setHeroItems] = useState([])
   const [showHeroForm, setShowHeroForm] = useState(false)
   const [heroForm, setHeroForm] = useState({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: 0, is_active: true })
+  const [heroTimeStart, setHeroTimeStart] = useState('')
+  const [heroTimeEnd, setHeroTimeEnd] = useState('')
   const [editingHero, setEditingHero] = useState(null)
   const [heroSaving, setHeroSaving] = useState(false)
 
@@ -322,18 +343,25 @@ export default function AdminPanel() {
     setHeroSaving(true)
     try {
       if (!heroForm.media_url) throw new Error('رابط الوسيلة مطلوب')
+      const dataToSave = {
+        ...heroForm,
+        start_time: mmssToSeconds(heroTimeStart),
+        end_time: mmssToSeconds(heroTimeEnd),
+      }
       if (editingHero) {
-        const { error } = await supabase.from('featured_hero').update(heroForm).eq('id', editingHero)
+        const { error } = await supabase.from('featured_hero').update(dataToSave).eq('id', editingHero)
         if (error) throw error
         toast({ title: 'تم التحديث' })
       } else {
-        const { error } = await supabase.from('featured_hero').insert([heroForm])
+        const { error } = await supabase.from('featured_hero').insert([dataToSave])
         if (error) throw error
         toast({ title: 'تمت الإضافة' })
       }
       setShowHeroForm(false)
       setEditingHero(null)
       setHeroForm({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: 0, is_active: true })
+      setHeroTimeStart('')
+      setHeroTimeEnd('')
       loadHeroItems()
     } catch (err) {
       toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
@@ -1885,7 +1913,7 @@ export default function AdminPanel() {
                 <p className="text-sm text-gray-400 mt-1">أضف لقطات فيديو أو صور تظهر في أعلى الصفحة الرئيسية</p>
               </div>
               <Button
-                onClick={() => { setShowHeroForm(true); setEditingHero(null); setHeroForm({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: heroItems.length, is_active: true }) }}
+                onClick={() => { setShowHeroForm(true); setEditingHero(null); setHeroForm({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: heroItems.length, is_active: true }); setHeroTimeStart(''); setHeroTimeEnd('') }}
                 className="bg-red-600 hover:bg-red-700"
               >
                 <Plus className="w-4 h-4 ml-2" /> إضافة عنصر
@@ -1961,25 +1989,25 @@ export default function AdminPanel() {
                         </div>
                         <div className="grid md:grid-cols-2 gap-4">
                           <div>
-                            <Label>وقت البداية (ثانية)</Label>
+                            <Label>وقت البداية (mm:ss)</Label>
                             <Input
-                              type="number"
-                              step="0.1"
-                              value={heroForm.start_time}
-                              onChange={(e) => setHeroForm({ ...heroForm, start_time: parseFloat(e.target.value) || 0 })}
+                              type="text"
+                              value={heroTimeStart}
+                              onChange={(e) => setHeroTimeStart(e.target.value)}
                               className="bg-black border-gray-700"
+                              placeholder="8:11"
                             />
                           </div>
                           <div>
-                            <Label>وقت النهاية (ثانية)</Label>
+                            <Label>وقت النهاية (mm:ss)</Label>
                             <Input
-                              type="number"
-                              step="0.1"
-                              value={heroForm.end_time}
-                              onChange={(e) => setHeroForm({ ...heroForm, end_time: parseFloat(e.target.value) || 0 })}
+                              type="text"
+                              value={heroTimeEnd}
+                              onChange={(e) => setHeroTimeEnd(e.target.value)}
                               className="bg-black border-gray-700"
+                              placeholder="9:20"
                             />
-                            <p className="text-xs text-gray-500 mt-1">اترك 0 للتشغيل الكامل</p>
+                            <p className="text-xs text-gray-500 mt-1">اترك فارغ للتشغيل الكامل</p>
                           </div>
                         </div>
                       </>
@@ -2069,7 +2097,7 @@ export default function AdminPanel() {
                           <p className="text-xs text-blue-400">مرتبط بمسلسل</p>
                         )}
                         {item.content_type === 'video' && (item.start_time > 0 || item.end_time > 0) && (
-                          <p className="text-xs text-gray-500">{item.start_time}s → {item.end_time > 0 ? item.end_time + 's' : 'النهاية'}</p>
+                          <p className="text-xs text-gray-500">{secondsToMmss(item.start_time)} → {item.end_time > 0 ? secondsToMmss(item.end_time) : 'النهاية'}</p>
                         )}
                         <p className="text-xs text-gray-500 truncate max-w-xs">{item.media_url}</p>
                       </div>
@@ -2080,7 +2108,7 @@ export default function AdminPanel() {
                       <Button size="sm" variant="ghost" onClick={() => handleToggleHeroActive(item.id, item.is_active)}>
                         {item.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { setEditingHero(item.id); setHeroForm({ ...item }); setShowHeroForm(true) }}>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingHero(item.id); setHeroForm({ ...item }); setHeroTimeStart(secondsToMmss(item.start_time)); setHeroTimeEnd(secondsToMmss(item.end_time)); setShowHeroForm(true) }}>
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => handleDeleteHero(item.id)} className="text-red-500">
