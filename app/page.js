@@ -356,7 +356,7 @@ export default function Home() {
 
       {/* Hero Banner */}
       {heroItems.length > 0 ? (
-        <section className="relative h-[calc(100vh-64px)] min-h-[400px] max-h-[900px] overflow-hidden bg-black">
+        <section className="relative h-[50vh] min-h-[300px] max-h-[500px] md:h-[calc(100vh-64px)] md:min-h-[400px] md:max-h-[900px] overflow-hidden bg-black">
           {heroItems.map((item, i) => {
             const isActive = i === heroIndex
             if (item.content_type === 'video') {
@@ -443,7 +443,7 @@ export default function Home() {
           )}
         </section>
       ) : (
-        <section className="relative h-[calc(100vh-64px)] min-h-[400px] max-h-[900px]">
+        <section className="relative h-[50vh] min-h-[300px] max-h-[500px] md:h-[calc(100vh-64px)] md:min-h-[400px] md:max-h-[900px]">
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920')] bg-cover bg-center" />
           <div className="absolute bottom-0 left-0 right-0 pb-6 pt-20 px-4 md:container md:mx-auto">
