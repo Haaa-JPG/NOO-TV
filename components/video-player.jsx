@@ -400,6 +400,13 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const [introChecked, setIntroChecked] = useState(false)
   const [introEnded, setIntroEnded] = useState(false)
   const introRef = useRef(null)
+  const prevUrlRef = useRef(null)
+
+  const currentUrl = activeStreamUrl || url
+  if (prevUrlRef.current !== currentUrl) {
+    prevUrlRef.current = currentUrl
+    if (introUrl) setIntroEnded(false)
+  }
 
   useEffect(() => {
     import('@/lib/supabase').then(({ supabase }) => {
@@ -437,24 +444,16 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (showIntro) {
     return (
-      <div className="absolute inset-0 w-full h-full bg-black">
-        <video
-          ref={introRef}
-          src={introUrl}
-          autoPlay
-          playsInline
-          controls={false}
-          className="absolute inset-0 w-full h-full object-contain"
-          onEnded={() => setIntroEnded(true)}
-          onClick={() => setIntroEnded(true)}
-        />
-        <button
-          onClick={() => setIntroEnded(true)}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 hover:bg-black/80 text-white text-sm px-4 py-2 rounded-full z-10 transition border border-gray-600"
-        >
-          تخطي ▶
-        </button>
-      </div>
+      <video
+        ref={introRef}
+        key={currentUrl}
+        src={introUrl}
+        autoPlay
+        playsInline
+        controls={false}
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        onEnded={() => setIntroEnded(true)}
+      />
     )
   }
 
