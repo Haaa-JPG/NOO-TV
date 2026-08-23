@@ -545,12 +545,11 @@ export default function AdminPanel() {
       const toInsert = episodes.map((ep, i) => {
         const num = ep.episode_number || ep.number || ep.num || (i + 1)
         const url = ep.embed_url || ep.url || ep.link || ep.src || ''
-        const seriesTitle = ep.title || ep.name || ep.title_ar || ''
-        const epTitle = seriesTitle || `الحلقة ${num}`
+        const seriesTitle = ep.title || ep.name || ep.title_ar || `الحلقة ${num}`
         return {
           season_id: expandedSeason.id,
           episode_number: num,
-          title: epTitle,
+          title: seriesTitle,
           embed_url: url,
           thumbnail: ep.thumbnail || ep.image || ep.poster || defaults.thumbnail,
           duration: ep.duration || defaults.duration,
