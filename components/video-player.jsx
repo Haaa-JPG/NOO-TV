@@ -1,5 +1,6 @@
 'use client'
 import { useRef, useEffect, useState, useCallback } from 'react'
+import P2PVideoPlayer from './p2p-video-player'
 
 const EXTRACT_API = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
 
@@ -388,7 +389,13 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   if (result.type === 'video') {
     const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
     return (
-      <DirectVideo src={src} title={title} initialTime={initialTime} onProgress={onProgress} />
+      <P2PVideoPlayer 
+        src={src} 
+        title={title} 
+        initialTime={initialTime} 
+        onProgress={onProgress}
+        onError={() => {}}
+      />
     )
   }
 
