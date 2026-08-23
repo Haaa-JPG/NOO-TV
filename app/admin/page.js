@@ -519,9 +519,20 @@ export default function AdminPanel() {
     setJsonUploading(true)
     try {
       const text = await file.text()
-      const json = JSON.parse(text)
+      let episodes = []
 
-      const episodes = Array.isArray(json) ? json : json.episodes || json.data || []
+      try {
+        const json = JSON.parse(text)
+        episodes = Array.isArray(json) ? json : json.episodes || json.data || json.series || []
+      } catch {
+        const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.startsWith('{') && l.endsWith('}'))
+        if (lines.length > 0) {
+          episodes = lines.map((line, i) => {
+            try { return JSON.parse(line) } catch { return null }
+          }).filter(Boolean)
+        }
+      }
+
       if (!episodes.length) {
         throw new Error('الملف فارغ أو صيغة غير صحيحة')
       }
@@ -533,17 +544,18 @@ export default function AdminPanel() {
 
       const toInsert = episodes.map((ep, i) => {
         const num = ep.episode_number || ep.number || ep.num || (i + 1)
+        const url = ep.embed_url || ep.url || ep.link || ep.src || ''
         return {
           season_id: expandedSeason.id,
           episode_number: num,
           title: ep.title || ep.name || ep.title_ar || '',
-          embed_url: ep.embed_url || ep.url || ep.link || ep.src || '',
+          embed_url: url,
           thumbnail: ep.thumbnail || ep.image || ep.poster || defaults.thumbnail,
           duration: ep.duration || defaults.duration,
           display_order: ep.display_order || ep.order || num,
           is_active: true,
           stream_status: 'pending',
-          ...(isSourcePageUrl(ep.embed_url || ep.url || ep.link || ep.src) ? { source_url: ep.embed_url || ep.url || ep.link || ep.src } : {})
+          ...(isSourcePageUrl(url) ? { source_url: url } : {})
         }
       }).filter(ep => ep.embed_url)
 
