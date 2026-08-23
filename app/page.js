@@ -21,11 +21,21 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showMenu, setShowMenu] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [heroItems, setHeroItems] = useState([])
+  const [heroIndex, setHeroIndex] = useState(0)
 
   useEffect(() => {
     checkUser()
     loadContent()
   }, [])
+
+  useEffect(() => {
+    if (heroItems.length <= 1) return
+    const timer = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % heroItems.length)
+    }, 8000)
+    return () => clearInterval(timer)
+  }, [heroItems.length])
 
   const checkUser = async () => {
     const { user } = await getCurrentUser()
@@ -107,6 +117,14 @@ export default function Home() {
       .order('display_order', { ascending: true })
     
     if (categoriesData) setCategories(categoriesData)
+
+    // Load hero items
+    const { data: heroData } = await supabase
+      .from('featured_hero')
+      .select('*')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+    if (heroData) setHeroItems(heroData)
   }
 
   const handleSignOut = async () => {
@@ -337,27 +355,116 @@ export default function Home() {
       )}
 
       {/* Hero Banner */}
-      <section className="relative h-[600px] mt-16">
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920')] bg-cover bg-center" />
-        <div className="relative container mx-auto px-4 h-full flex items-center">
-          <div className="max-w-2xl">
-            <h1 className="text-5xl font-bold mb-4">مرحباً بك في NOO TV</h1>
-            <p className="text-xl mb-6 text-gray-300">
-              شاهد آلاف الأفلام والمسلسلات العربية والعالمية بجودة عالية
-            </p>
-            <div className="flex gap-4">
-              <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push('/movies')}>
-                <Play className="w-5 h-5 ml-2" />
-                ابدأ المشاهدة
-              </Button>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" onClick={() => router.push('/series')}>
-                المزيد
-              </Button>
+      {heroItems.length > 0 ? (
+        <section className="relative h-[600px] mt-16 overflow-hidden bg-black">
+          {heroItems.map((item, i) => {
+            const isActive = i === heroIndex
+            if (item.content_type === 'video') {
+              return (
+                <video
+                  key={item.id}
+                  src={item.media_url}
+                  poster={item.poster_url}
+                  autoPlay={isActive}
+                  muted
+                  loop={false}
+                  playsInline
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+                  ref={el => {
+                    if (el) {
+                      if (isActive) {
+                        el.currentTime = item.start_time || 0
+                        el.play().catch(() => {})
+                        const onTimeUpdate = () => {
+                          if (item.end_time > 0 && el.currentTime >= item.end_time) {
+                            el.pause()
+                            setHeroIndex(prev => (prev + 1) % heroItems.length)
+                          }
+                        }
+                        el.addEventListener('timeupdate', onTimeUpdate)
+                        el._cleanup = () => el.removeEventListener('timeupdate', onTimeUpdate)
+                      } else {
+                        el.pause()
+                        if (el._cleanup) el._cleanup()
+                      }
+                    }
+                  }}
+                />
+              )
+            }
+            return (
+              <div
+                key={item.id}
+                className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+                style={{ backgroundImage: `url(${item.media_url})` }}
+              />
+            )
+          })}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+          <div className="relative container mx-auto px-4 h-full flex items-end pb-20">
+            <div className="max-w-2xl">
+              {heroItems[heroIndex]?.title && (
+                <h1 className="text-5xl font-bold mb-4">{heroItems[heroIndex].title}</h1>
+              )}
+              {heroItems[heroIndex]?.description && (
+                <p className="text-xl mb-6 text-gray-300">{heroItems[heroIndex].description}</p>
+              )}
+              <div className="flex gap-4">
+                {heroItems[heroIndex]?.content_type === 'video' && heroItems[heroIndex]?.series_id ? (
+                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push(`/watch/series/${heroItems[heroIndex].series_id}`)}>
+                    <Play className="w-5 h-5 ml-2" />
+                    ابدأ المشاهدة
+                  </Button>
+                ) : heroItems[heroIndex]?.content_type === 'video' && heroItems[heroIndex]?.episode_id ? (
+                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push(heroItems[heroIndex].episode_id)}>
+                    <Play className="w-5 h-5 ml-2" />
+                    شاهد الآن
+                  </Button>
+                ) : (
+                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push('/movies')}>
+                    <Play className="w-5 h-5 ml-2" />
+                    ابدأ المشاهدة
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+          {/* Slide indicators */}
+          {heroItems.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {heroItems.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHeroIndex(i)}
+                  className={`w-2 h-2 rounded-full transition ${i === heroIndex ? 'bg-red-600 w-6' : 'bg-white/40'}`}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="relative h-[600px] mt-16">
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920')] bg-cover bg-center" />
+          <div className="relative container mx-auto px-4 h-full flex items-center">
+            <div className="max-w-2xl">
+              <h1 className="text-5xl font-bold mb-4">مرحباً بك في NOO TV</h1>
+              <p className="text-xl mb-6 text-gray-300">
+                شاهد آلاف الأفلام والمسلسلات العربية والعالمية بجودة عالية
+              </p>
+              <div className="flex gap-4">
+                <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push('/movies')}>
+                  <Play className="w-5 h-5 ml-2" />
+                  ابدأ المشاهدة
+                </Button>
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" onClick={() => router.push('/series')}>
+                  المزيد
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Content Sections */}
       <div className="container mx-auto px-4 py-8">

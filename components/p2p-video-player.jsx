@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import CustomControls from './custom-controls'
 
 const TRACKERS = [
   'wss://tracker.openwebtorrent.com',
@@ -154,16 +153,14 @@ function P2PVideoPlayer({
 
   // Clean render - NO P2P UI AT ALL
   return (
-    <div className="absolute inset-0 w-full h-full bg-black">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
-      <CustomControls videoRef={videoRef} />
-    </div>
+    <video
+      ref={videoRef}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-contain bg-black"
+      title={title}
+    />
   )
 }
 

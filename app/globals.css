@@ -97,9 +97,3 @@ button, a, [role="button"] {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
-
-@keyframes rp {
-  0% { opacity: 0; transform: translateY(-50%) scale(0.5); }
-  30% { opacity: 1; transform: translateY(-50%) scale(1); }
-  100% { opacity: 0; transform: translateY(-50%) scale(1.15); }
-}

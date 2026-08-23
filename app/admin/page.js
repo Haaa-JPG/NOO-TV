@@ -185,21 +185,12 @@ export default function AdminPanel() {
     totalEpisodes: 0,
   })
 
-  // Display settings
-  const [introVideoUrl, setIntroVideoUrl] = useState('')
-  const [savingIntro, setSavingIntro] = useState(false)
-  const [watermarkUrl, setWatermarkUrl] = useState('')
-  const [watermarkPosition, setWatermarkPosition] = useState('top-right')
-  const [watermarkOpacity, setWatermarkOpacity] = useState('0.7')
-  const [watermarkSize, setWatermarkSize] = useState('80')
-  const [savingWatermark, setSavingWatermark] = useState(false)
-  const [uploadingWatermark, setUploadingWatermark] = useState(false)
-  const [overlayRegions, setOverlayRegions] = useState([])
-  const [overlayPreviewUrl, setOverlayPreviewUrl] = useState('')
-  const [savingOverlay, setSavingOverlay] = useState(false)
-  const [drawingOverlay, setDrawingOverlay] = useState(false)
-  const [drawStart, setDrawStart] = useState(null)
-  const [drawCurrent, setDrawCurrent] = useState(null)
+  // Hero Banner
+  const [heroItems, setHeroItems] = useState([])
+  const [showHeroForm, setShowHeroForm] = useState(false)
+  const [heroForm, setHeroForm] = useState({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: 0, is_active: true })
+  const [editingHero, setEditingHero] = useState(null)
+  const [heroSaving, setHeroSaving] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -286,136 +277,71 @@ export default function AdminPanel() {
         (seriesData?.reduce((sum, s) => sum + (s.views || 0), 0) || 0),
     })
 
-    // Load display settings
-    const { data: settingsData } = await supabase
-      .from('site_settings')
-      .select('setting_value')
-      .eq('setting_key', 'intro_video_url')
-      .maybeSingle()
-    if (settingsData?.setting_value) {
-      setIntroVideoUrl(settingsData.setting_value)
-    }
-
-    const { data: wmData } = await supabase
-      .from('site_settings')
-      .select('setting_key, setting_value')
-      .in('setting_key', ['watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size', 'overlay_regions', 'overlay_preview_url'])
-    if (wmData) {
-      wmData.forEach(row => {
-        if (row.setting_key === 'watermark_url') setWatermarkUrl(row.setting_value || '')
-        if (row.setting_key === 'watermark_position') setWatermarkPosition(row.setting_value || 'top-right')
-        if (row.setting_key === 'watermark_opacity') setWatermarkOpacity(row.setting_value || '0.7')
-        if (row.setting_key === 'watermark_size') setWatermarkSize(row.setting_value || '80')
-        if (row.setting_key === 'overlay_regions') {
-          try { setOverlayRegions(JSON.parse(row.setting_value || '[]')) } catch { setOverlayRegions([]) }
-        }
-        if (row.setting_key === 'overlay_preview_url') setOverlayPreviewUrl(row.setting_value || '')
-      })
-    }
+    // Load hero items
+    const { data: heroData } = await supabase
+      .from('featured_hero')
+      .select('*')
+      .order('display_order', { ascending: true })
+    if (heroData) setHeroItems(heroData)
   }
 
-  const saveIntroVideo = async () => {
-    setSavingIntro(true)
+  const loadHeroItems = async () => {
+    const { data } = await supabase.from('featured_hero').select('*').order('display_order', { ascending: true })
+    if (data) setHeroItems(data)
+  }
+
+  const handleHeroSubmit = async (e) => {
+    e.preventDefault()
+    setHeroSaving(true)
     try {
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert({ setting_key: 'intro_video_url', setting_value: introVideoUrl, value_type: 'string' }, { onConflict: 'setting_key' })
-      if (error) throw error
-      toast({ title: 'تم حفظ فيديو المقدمة' })
+      if (!heroForm.media_url) throw new Error('رابط الوسيلة مطلوب')
+      if (editingHero) {
+        const { error } = await supabase.from('featured_hero').update(heroForm).eq('id', editingHero)
+        if (error) throw error
+        toast({ title: 'تم التحديث' })
+      } else {
+        const { error } = await supabase.from('featured_hero').insert([heroForm])
+        if (error) throw error
+        toast({ title: 'تمت الإضافة' })
+      }
+      setShowHeroForm(false)
+      setEditingHero(null)
+      setHeroForm({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: 0, is_active: true })
+      loadHeroItems()
     } catch (err) {
       toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     } finally {
-      setSavingIntro(false)
+      setHeroSaving(false)
     }
   }
 
-  const handleWatermarkUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'خطأ', description: 'يرجى اختيار صورة', variant: 'destructive' })
-      return
-    }
-    setUploadingWatermark(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `watermark/watermark.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('public')
-        .upload(path, file, { upsert: true, contentType: file.type })
-      if (uploadError) throw uploadError
-      const { data: urlData } = supabase.storage.from('public').getPublicUrl(path)
-      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
-      setWatermarkUrl(publicUrl)
-      toast({ title: 'تم رفع الشعار' })
-    } catch (err) {
-      toast({ title: 'خطأ بالرفع', description: err.message, variant: 'destructive' })
-    } finally {
-      setUploadingWatermark(false)
+  const handleDeleteHero = async (id) => {
+    if (!confirm('هل أنت متأكد من الحذف؟')) return
+    const { error } = await supabase.from('featured_hero').delete().eq('id', id)
+    if (!error) {
+      toast({ title: 'تم الحذف' })
+      loadHeroItems()
     }
   }
 
-  const saveWatermark = async () => {
-    setSavingWatermark(true)
-    try {
-      const settings = [
-        { setting_key: 'watermark_url', setting_value: watermarkUrl, value_type: 'string' },
-        { setting_key: 'watermark_position', setting_value: watermarkPosition, value_type: 'string' },
-        { setting_key: 'watermark_opacity', setting_value: watermarkOpacity, value_type: 'string' },
-        { setting_key: 'watermark_size', setting_value: watermarkSize, value_type: 'string' },
-      ]
-      const { error } = await supabase.from('site_settings').upsert(settings, { onConflict: 'setting_key' })
-      if (error) throw error
-      toast({ title: 'تم حفظ إعدادات الشعار' })
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    } finally {
-      setSavingWatermark(false)
+  const handleToggleHeroActive = async (id, current) => {
+    const { error } = await supabase.from('featured_hero').update({ is_active: !current }).eq('id', id)
+    if (!error) {
+      toast({ title: current ? 'تم الإخفاء' : 'تم الإظهار' })
+      loadHeroItems()
     }
   }
 
-  const deleteWatermark = async () => {
-    try {
-      const keys = ['watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size']
-      const { error } = await supabase.from('site_settings').delete().in('setting_key', keys)
-      if (error) throw error
-      setWatermarkUrl('')
-      setWatermarkPosition('top-right')
-      setWatermarkOpacity('0.7')
-      setWatermarkSize('80')
-      toast({ title: 'تم حذف الشعار' })
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    }
-  }
-
-  const saveOverlayRegions = async () => {
-    setSavingOverlay(true)
-    try {
-      const settings = [
-        { setting_key: 'overlay_regions', setting_value: JSON.stringify(overlayRegions), value_type: 'string' },
-        { setting_key: 'overlay_preview_url', setting_value: overlayPreviewUrl, value_type: 'string' },
-      ]
-      const { error } = await supabase.from('site_settings').upsert(settings, { onConflict: 'setting_key' })
-      if (error) throw error
-      toast({ title: 'تم حفظ مناطق الإزالة' })
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    } finally {
-      setSavingOverlay(false)
-    }
-  }
-
-  const deleteOverlayRegions = async () => {
-    try {
-      const { error } = await supabase.from('site_settings').delete().in('setting_key', ['overlay_regions', 'overlay_preview_url'])
-      if (error) throw error
-      setOverlayRegions([])
-      setOverlayPreviewUrl('')
-      toast({ title: 'تم حذف مناطق الإزالة' })
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    }
+  const handleMoveHero = async (id, direction) => {
+    const idx = heroItems.findIndex(h => h.id === id)
+    if (idx < 0) return
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= heroItems.length) return
+    const a = heroItems[idx]
+    const b = heroItems[swapIdx]
+    await supabase.from('featured_hero').update({ display_order: b.display_order }).eq('id', a.id)
+    await supabase.from('featured_hero').update({ display_order: a.display_order }).eq('id', b.id)
+    loadHeroItems()
   }
 
   // ============ MOVIES ============
@@ -865,8 +791,8 @@ export default function AdminPanel() {
             <TabsTrigger value="schedule" className="data-[state=active]:bg-red-600">
               <Calendar className="w-4 h-4 ml-2" /> الجدول الزمني
             </TabsTrigger>
-            <TabsTrigger value="display" className="data-[state=active]:bg-red-600">
-              <Eye className="w-4 h-4 ml-2" /> إعدادات العرض
+            <TabsTrigger value="hero" className="data-[state=active]:bg-red-600">
+              <Eye className="w-4 h-4 ml-2" /> البانر الرئيسي
             </TabsTrigger>
           </TabsList>
 
@@ -1892,415 +1818,226 @@ export default function AdminPanel() {
             })()}
           </TabsContent>
 
-          {/* ================= DISPLAY SETTINGS ================= */}
-          <TabsContent value="display">
-            <Card className="bg-gray-900 border-gray-800 max-w-2xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+          {/* ================= HERO BANNER ================= */}
+          <TabsContent value="hero">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
                   <Eye className="w-5 h-5 text-red-600" />
-                  إعدادات العرض
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label className="text-sm font-bold mb-2 block">فيديو المقدمة (Intro)</Label>
-                  <p className="text-xs text-gray-400 mb-3">يُعرض هذا الفيديو قبل بدء أي فيلم أو حلقة مسلسل</p>
-                  <div className="flex gap-2">
-                    <Input
-                      value={introVideoUrl}
-                      onChange={(e) => setIntroVideoUrl(e.target.value)}
-                      className="bg-black border-gray-700 flex-1"
-                      placeholder="https://example.com/intro.mp4"
-                    />
-                    <Button
-                      onClick={saveIntroVideo}
-                      disabled={savingIntro}
-                      className="bg-red-600 hover:bg-red-700 shrink-0"
-                    >
-                      {savingIntro ? 'جاري الحفظ...' : 'حفظ'}
-                    </Button>
-                  </div>
-                  {introVideoUrl && (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-500 mb-1">معاينة:</p>
-                      <video
-                        src={introVideoUrl}
-                        controls
-                        className="w-full max-w-md rounded-lg border border-gray-700"
-                        style={{ maxHeight: 200 }}
-                      />
-                    </div>
-                  )}
-                </div>
+                  البانر الرئيسي (Netflix-style)
+                </h2>
+                <p className="text-sm text-gray-400 mt-1">أضف لقطات فيديو أو صور تظهر في أعلى الصفحة الرئيسية</p>
+              </div>
+              <Button
+                onClick={() => { setShowHeroForm(true); setEditingHero(null); setHeroForm({ content_type: 'image', title: '', description: '', media_url: '', poster_url: '', series_id: '', episode_id: '', start_time: 0, end_time: 0, display_order: heroItems.length, is_active: true }) }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Plus className="w-4 h-4 ml-2" /> إضافة عنصر
+              </Button>
+            </div>
 
-                <div className="border-t border-gray-800 pt-6">
-                  <Label className="text-sm font-bold mb-2 block">شعار الفيديو (Watermark)</Label>
-                  <p className="text-xs text-gray-400 mb-3">صورة تظهر فوق جميع مقاطع الفيديو</p>
-
-                  <div className="space-y-4">
-                    <div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleWatermarkUpload}
-                        className="hidden"
-                        id="watermark-upload"
-                      />
-                      <div className="flex gap-2">
-                        <label
-                          htmlFor="watermark-upload"
-                          className="cursor-pointer bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition"
-                        >
-                          {uploadingWatermark ? (
-                            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> جاري الرفع...</>
-                          ) : (
-                            <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> اختر صورة</>
-                          )}
-                        </label>
-                        {watermarkUrl && (
-                          <button
-                            onClick={deleteWatermark}
-                            className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/30 rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            حذف الشعار
-                          </button>
-                        )}
+            {showHeroForm && (
+              <Card className="bg-gray-900 border-gray-800 mb-6">
+                <CardHeader>
+                  <CardTitle>{editingHero ? 'تحرير العنصر' : 'إضافة عنصر جديد'}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleHeroSubmit} className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>نوع المحتوى</Label>
+                        <Select value={heroForm.content_type} onValueChange={(v) => setHeroForm({ ...heroForm, content_type: v })}>
+                          <SelectTrigger className="bg-black border-gray-700">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="image">صورة</SelectItem>
+                            <SelectItem value="video">فيديو (بدون صوت)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>ترتيب العرض</Label>
+                        <Input
+                          type="number"
+                          value={heroForm.display_order}
+                          onChange={(e) => setHeroForm({ ...heroForm, display_order: parseInt(e.target.value) || 0 })}
+                          className="bg-black border-gray-700"
+                        />
                       </div>
                     </div>
 
-                    {watermarkUrl && (
+                    <div>
+                      <Label>{heroForm.content_type === 'video' ? 'رابط الفيديو (.mp4)' : 'رابط الصورة'}</Label>
+                      <Input
+                        value={heroForm.media_url}
+                        onChange={(e) => setHeroForm({ ...heroForm, media_url: e.target.value })}
+                        className="bg-black border-gray-700"
+                        placeholder={heroForm.content_type === 'video' ? 'https://example.com/video.mp4' : 'https://example.com/image.jpg'}
+                        required
+                      />
+                    </div>
+
+                    {heroForm.content_type === 'video' && (
                       <>
                         <div>
-                          <Label className="text-xs text-gray-400 mb-1.5 block">حرّك الشعار بالسحب، وغيّر الحجم من الزاوية</Label>
-                          <div
-                            ref={(el) => {
-                              if (el) el._wmEl = el
-                            }}
-                            className="relative bg-gray-800 rounded-lg border border-gray-700 w-full max-w-lg overflow-hidden cursor-crosshair"
-                            style={{ aspectRatio: '16/9' }}
-                            onMouseDown={(e) => {
-                              const box = e.currentTarget
-                              const img = box.querySelector('img[data-wm="true"]')
-                              if (!img) return
-                              const boxRect = box.getBoundingClientRect()
-                              const imgRect = img.getBoundingClientRect()
-
-                              const isResizeHandle = (
-                                e.clientX > imgRect.right - 12 && e.clientY > imgRect.bottom - 12
-                              )
-
-                              if (isResizeHandle) {
-                                const startW = parseInt(watermarkSize)
-                                const startX = e.clientX
-                                const startBoxW = boxRect.width
-                                const onMove = (ev) => {
-                                  const dx = ev.clientX - startX
-                                  const newW = Math.max(20, Math.min(startW + (dx / startBoxW) * 200, 300))
-                                  setWatermarkSize(String(Math.round(newW)))
-                                }
-                                const onUp = () => {
-                                  document.removeEventListener('mousemove', onMove)
-                                  document.removeEventListener('mouseup', onUp)
-                                }
-                                document.addEventListener('mousemove', onMove)
-                                document.addEventListener('mouseup', onUp)
-                              } else {
-                                const startLeft = imgRect.left - boxRect.left
-                                const startTop = imgRect.top - boxRect.top
-                                const startX = e.clientX
-                                const startY = e.clientY
-                                const onMove = (ev) => {
-                                  const dx = ev.clientX - startX
-                                  const dy = ev.clientY - startY
-                                  const newLeft = Math.max(0, Math.min(startLeft + dx, boxRect.width - imgRect.width))
-                                  const newTop = Math.max(0, Math.min(startTop + dy, boxRect.height - imgRect.height))
-                                  img.style.left = newLeft + 'px'
-                                  img.style.top = newTop + 'px'
-                                  img.style.right = 'auto'
-                                  img.style.bottom = 'auto'
-                                  img.style.transform = 'none'
-
-                                  const pctX = (newLeft / (boxRect.width - imgRect.width)) * 100
-                                  const pctY = (newTop / (boxRect.height - imgRect.height)) * 100
-                                  let pos = ''
-                                  if (pctY < 33) pos += 'top'
-                                  else if (pctY > 67) pos += 'bottom'
-                                  else pos += 'middle'
-                                  pos += '-'
-                                  if (pctX < 33) pos += 'left'
-                                  else if (pctX > 67) pos += 'right'
-                                  else pos += 'center'
-                                  const mapping = {
-                                    'top-left': 'top-left', 'top-center': 'top-center', 'top-right': 'top-right',
-                                    'middle-left': 'top-left', 'middle-center': 'top-center', 'middle-right': 'top-right',
-                                    'bottom-left': 'bottom-left', 'bottom-center': 'bottom-center', 'bottom-right': 'bottom-right',
-                                  }
-                                  setWatermarkPosition(mapping[pos] || 'top-right')
-                                }
-                                const onUp = () => {
-                                  document.removeEventListener('mousemove', onMove)
-                                  document.removeEventListener('mouseup', onUp)
-                                }
-                                document.addEventListener('mousemove', onMove)
-                                document.addEventListener('mouseup', onUp)
-                              }
-                            }}
-                          >
-                            <img
-                              data-wm="true"
-                              src={watermarkUrl}
-                              alt="watermark"
-                              draggable={false}
-                              style={{
-                                width: `${Math.min(watermarkSize, 150)}px`,
-                                opacity: watermarkOpacity,
-                                position: 'absolute',
-                                top: 8,
-                                right: 8,
-                                cursor: 'move',
-                              }}
-                              className="select-none"
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs pointer-events-none">اسحب الشعار لتغيير مكانه</div>
-
-                            {/* Resize handle indicator */}
-                            <div
-                              className="absolute w-3 h-3 border-2 border-white/50 rounded-sm pointer-events-none"
-                              style={{
-                                position: 'absolute',
-                                bottom: 5,
-                                right: 5,
-                                cursor: 'nwse-resize',
-                              }}
-                            />
-                          </div>
+                          <Label>رابط الصورة المصغرة (اختياري - للعرض قبل تشغيل الفيديو)</Label>
+                          <Input
+                            value={heroForm.poster_url}
+                            onChange={(e) => setHeroForm({ ...heroForm, poster_url: e.target.value })}
+                            className="bg-black border-gray-700"
+                            placeholder="https://example.com/poster.jpg"
+                          />
                         </div>
-
-                        <div className="flex gap-4">
-                          <div className="flex-1">
-                            <Label className="text-xs text-gray-400 mb-1 block">الحجم: {watermarkSize}px</Label>
-                            <input
-                              type="range"
-                              min="30"
-                              max="200"
-                              value={watermarkSize}
-                              onChange={(e) => setWatermarkSize(e.target.value)}
-                              className="w-full accent-red-600"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <Label className="text-xs text-gray-400 mb-1 block">الشفافية: {Math.round(watermarkOpacity * 100)}%</Label>
-                            <input
-                              type="range"
-                              min="0.1"
-                              max="1"
-                              step="0.05"
-                              value={watermarkOpacity}
-                              onChange={(e) => setWatermarkOpacity(e.target.value)}
-                              className="w-full accent-red-600"
-                            />
-                          </div>
-                        </div>
-
                         <div>
-                          <Label className="text-xs text-gray-400 mb-1.5 block">أو اختر مكان جاهز:</Label>
-                          <div className="grid grid-cols-3 gap-1.5 max-w-[200px]">
-                            {[
-                              { val: 'top-left', label: '▲◄' },
-                              { val: 'top-center', label: '▲■' },
-                              { val: 'top-right', label: '▲►' },
-                              { val: 'bottom-left', label: '▼◄' },
-                              { val: 'bottom-center', label: '▼■' },
-                              { val: 'bottom-right', label: '▼►' },
-                            ].map(p => (
-                              <button
-                                key={p.val}
-                                onClick={() => setWatermarkPosition(p.val)}
-                                className={`text-[11px] py-1.5 px-2 rounded-lg border transition ${
-                                  watermarkPosition === p.val
-                                    ? 'bg-red-600 border-red-500 text-white'
-                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-                                }`}
-                              >
-                                {p.label}
-                              </button>
-                            ))}
+                          <Label>مسلسل مرتبط (اختياري - يظهر زر 'ابدأ المشاهدة')</Label>
+                          <Select value={heroForm.series_id || '__none'} onValueChange={(v) => setHeroForm({ ...heroForm, series_id: v === '__none' ? '' : v })}>
+                            <SelectTrigger className="bg-black border-gray-700">
+                              <SelectValue placeholder="اختر مسلسل" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none">بدون</SelectItem>
+                              {series.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <Label>وقت البداية (ثانية)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={heroForm.start_time}
+                              onChange={(e) => setHeroForm({ ...heroForm, start_time: parseFloat(e.target.value) || 0 })}
+                              className="bg-black border-gray-700"
+                            />
+                          </div>
+                          <div>
+                            <Label>وقت النهاية (ثانية)</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={heroForm.end_time}
+                              onChange={(e) => setHeroForm({ ...heroForm, end_time: parseFloat(e.target.value) || 0 })}
+                              className="bg-black border-gray-700"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">اترك 0 للتشغيل الكامل</p>
                           </div>
                         </div>
                       </>
                     )}
 
-                    <Button
-                      onClick={saveWatermark}
-                      disabled={savingWatermark}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      {savingWatermark ? 'جاري الحفظ...' : 'حفظ إعدادات الشعار'}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-800 pt-6">
-                  <Label className="text-sm font-bold mb-2 block">إخفاء شعارات قديمة من الفيديو</Label>
-                  <p className="text-xs text-gray-400 mb-3">حدد المناطق التي تحتوي على شعارات قديمة وسيتم إخفاؤها بировка سوداء</p>
-
-                  <div className="space-y-4">
                     <div>
-                      <Label className="text-xs text-gray-400 mb-1.5 block">صورة معاينة (رابط فيديو أو صورة من الفيديو)</Label>
+                      <Label>العنوان (اختياري)</Label>
                       <Input
-                        value={overlayPreviewUrl}
-                        onChange={(e) => setOverlayPreviewUrl(e.target.value)}
-                        className="bg-black border-gray-700 text-sm"
-                        placeholder="https://example.com/video.mp4 أو رابط صورة"
+                        value={heroForm.title}
+                        onChange={(e) => setHeroForm({ ...heroForm, title: e.target.value })}
+                        className="bg-black border-gray-700"
                       />
-                      <p className="text-[10px] text-gray-500 mt-1">ضع رابط الفيديو أو صورة لمعاينة أماكن الشعارات</p>
                     </div>
 
-                    {overlayPreviewUrl && (
-                      <div className="relative">
-                        <div
-                          className="relative bg-gray-800 rounded-lg border border-gray-700 w-full max-w-lg overflow-hidden select-none"
-                          style={{ aspectRatio: '16/9' }}
-                          onMouseDown={(e) => {
-                            if (!drawingOverlay) return
-                            const rect = e.currentTarget.getBoundingClientRect()
-                            const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1)
-                            const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1)
-                            setDrawStart({ x: parseFloat(x), y: parseFloat(y) })
-                            setDrawCurrent({ x: parseFloat(x), y: parseFloat(y) })
-                          }}
-                          onMouseMove={(e) => {
-                            if (!drawStart) return
-                            const rect = e.currentTarget.getBoundingClientRect()
-                            const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1)
-                            const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1)
-                            setDrawCurrent({ x: parseFloat(x), y: parseFloat(y) })
-                          }}
-                          onMouseUp={() => {
-                            if (!drawStart || !drawCurrent) return
-                            const x = Math.min(drawStart.x, drawCurrent.x)
-                            const y = Math.min(drawStart.y, drawCurrent.y)
-                            const w = Math.abs(drawCurrent.x - drawStart.x)
-                            const h = Math.abs(drawCurrent.y - drawStart.y)
-                            if (w > 2 && h > 2) {
-                              setOverlayRegions(prev => [...prev, { x, y, w, h, id: Date.now() }])
-                            }
-                            setDrawStart(null)
-                            setDrawCurrent(null)
-                          }}
-                        >
-                          {overlayPreviewUrl.match(/\.(mp4|webm|ogg)/i) ? (
-                            <video
-                              src={overlayPreviewUrl}
-                              className="absolute inset-0 w-full h-full object-contain"
-                              controls
-                              preload="metadata"
-                            />
-                          ) : (
-                            <img
-                              src={overlayPreviewUrl}
-                              className="absolute inset-0 w-full h-full object-contain"
-                              alt="preview"
-                            />
-                          )}
+                    <div>
+                      <Label>الوصف (اختياري)</Label>
+                      <Input
+                        value={heroForm.description}
+                        onChange={(e) => setHeroForm({ ...heroForm, description: e.target.value })}
+                        className="bg-black border-gray-700"
+                      />
+                    </div>
 
-                          {/* Saved regions */}
-                          {overlayRegions.map((r, i) => (
-                            <div
-                              key={r.id || i}
-                              className="absolute bg-black border border-red-500/50 group cursor-pointer hover:border-red-400"
-                              style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setOverlayRegions(prev => prev.filter((_, idx) => idx !== i))
-                              }}
-                            >
-                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                                <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
-                              </div>
-                              <div className="absolute -top-5 left-0 bg-red-600 text-white text-[9px] px-1 rounded opacity-0 group-hover:opacity-100 transition">
-                                اضغط للحذف
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* Drawing preview */}
-                          {drawStart && drawCurrent && (
-                            <div
-                              className="absolute bg-red-500/20 border-2 border-dashed border-red-400 pointer-events-none"
-                              style={{
-                                left: `${Math.min(drawStart.x, drawCurrent.x)}%`,
-                                top: `${Math.min(drawStart.y, drawCurrent.y)}%`,
-                                width: `${Math.abs(drawCurrent.x - drawStart.x)}%`,
-                                height: `${Math.abs(drawCurrent.y - drawStart.y)}%`,
-                              }}
-                            />
-                          )}
-
-                          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-                            <span className="text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5 rounded">
-                              {drawingOverlay ? 'ارسم مربع على المنطقة' : 'معاينة'}
-                            </span>
-                            <span className="text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5 rounded">
-                              {overlayRegions.length} منطقة
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 mt-3">
-                          <Button
-                            size="sm"
-                            onClick={() => setDrawingOverlay(!drawingOverlay)}
-                            className={drawingOverlay ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'}
-                          >
-                            {drawingOverlay ? (
-                              <><svg className="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12"/></svg> إلغاء التحديد</>
-                            ) : (
-                              <><svg className="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> رسم منطقة</>
-                            )}
-                          </Button>
-                          {overlayRegions.length > 0 && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setOverlayRegions([])}
-                              className="border-gray-700 text-gray-400"
-                            >
-                              مسح الكل
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            onClick={saveOverlayRegions}
-                            disabled={savingOverlay}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            {savingOverlay ? 'جاري الحفظ...' : 'حفظ'}
-                          </Button>
-                          {overlayRegions.length > 0 && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={deleteOverlayRegions}
-                              className="border-red-600/30 text-red-400 hover:bg-red-600/20"
-                            >
-                              حذف الكل
-                            </Button>
-                          )}
-                        </div>
+                    {heroForm.content_type === 'video' && !heroForm.series_id && (
+                      <div>
+                        <Label>رابط الزر (اختياري - عند الضغط ينتقل لهذا الرابط)</Label>
+                        <Input
+                          value={heroForm.episode_id || ''}
+                          onChange={(e) => setHeroForm({ ...heroForm, episode_id: e.target.value })}
+                          className="bg-black border-gray-700"
+                          placeholder="https://... أو /watch/series/..."
+                        />
                       </div>
                     )}
 
-                    {!overlayPreviewUrl && (
-                      <p className="text-xs text-gray-500 bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                        اكتب رابط فيديو في الحقل أعلاه ثم اضغط "رسم منطقة" وارسم مربعات على الشعارات التي تريد إخفاءها
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={heroForm.is_active}
+                          onChange={(e) => setHeroForm({ ...heroForm, is_active: e.target.checked })}
+                          className="w-4 h-4"
+                        />
+                        مفعل
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={heroSaving} className="bg-red-600 hover:bg-red-700">
+                        {heroSaving ? 'جاري الحفظ...' : editingHero ? 'تحديث' : 'إضافة'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => { setShowHeroForm(false); setEditingHero(null) }}>
+                        إلغاء
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="space-y-2">
+              {heroItems.map((item) => (
+                <Card key={item.id} className="bg-gray-900 border-gray-800">
+                  <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        {item.content_type === 'video' ? (
+                          <div className="w-24 h-14 bg-gray-800 rounded overflow-hidden relative">
+                            {item.poster_url ? (
+                              <img src={item.poster_url} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center"><Film className="w-6 h-6 text-gray-500" /></div>
+                            )}
+                            <div className="absolute inset-0 flex items-center justify-center"><Play className="w-5 h-5 text-white drop-shadow" /></div>
+                          </div>
+                        ) : (
+                          <img src={item.media_url} className="w-24 h-14 object-cover rounded" alt="" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-bold flex items-center gap-2">
+                          {item.content_type === 'video' ? 'فيديو' : 'صورة'}
+                          {!item.is_active && <span className="text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded">مخفي</span>}
+                        </div>
+                        {item.title && <p className="text-sm text-gray-400">{item.title}</p>}
+                        {item.content_type === 'video' && item.series_id && (
+                          <p className="text-xs text-blue-400">مرتبط بمسلسل</p>
+                        )}
+                        {item.content_type === 'video' && (item.start_time > 0 || item.end_time > 0) && (
+                          <p className="text-xs text-gray-500">{item.start_time}s → {item.end_time > 0 ? item.end_time + 's' : 'النهاية'}</p>
+                        )}
+                        <p className="text-xs text-gray-500 truncate max-w-xs">{item.media_url}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => handleMoveHero(item.id, 'up')} title="تحريك لأعلى">↑</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleMoveHero(item.id, 'down')} title="تحريك لأسفل">↓</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleToggleHeroActive(item.id, item.is_active)}>
+                        {item.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingHero(item.id); setHeroForm({ ...item }); setShowHeroForm(true) }}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteHero(item.id)} className="text-red-500">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {heroItems.length === 0 && (
+                <p className="text-center text-gray-400 py-8">لا توجد عناصر في البانر. أضف صورة أو فيديو.</p>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
