@@ -509,13 +509,16 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   }
 
   return (
-    <iframe
-      src={result.embed}
-      className="absolute inset-0 w-full h-full bg-black"
-      title={title}
-      allowFullScreen
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
+    <div className="absolute inset-0 w-full h-full bg-black overflow-hidden">
+      <div className="relative w-full h-full">
+        <iframe
+          src={result.embed}
+          className="absolute top-[-55px] left-0 w-full h-[calc(100%+55px)] border-0"
+          title={title}
+          allowFullScreen
+          sandbox="allow-scripts allow-same-origin allow-forms"
+        />
+      </div>
+    </div>
   )
 }
