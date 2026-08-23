@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Heart, Clock, Settings, LogOut, Play, Disc } from 'lucide-react'
+import { Heart, Clock, Settings, LogOut, Play, Disc, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 
@@ -156,6 +156,14 @@ export default function UserDashboard() {
     }
   }
 
+  const removeFromHistory = async (id) => {
+    const { error } = await supabase.from('watch_history').delete().eq('id', id)
+    if (!error) {
+      setWatchHistory(prev => prev.filter(h => h.id !== id))
+      toast({ title: 'تم الحذف من سجل المشاهدة' })
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -252,7 +260,7 @@ export default function UserDashboard() {
                 <h3 className="text-xl text-gray-400">لا يوجد سجل مشاهدة</h3>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {watchHistory.map((item) => {
                   const progressPct = item.watched_time && item.duration && item.duration > 0
                     ? Math.min(100, Math.round((item.watched_time / item.duration) * 100))
@@ -263,100 +271,89 @@ export default function UserDashboard() {
 
                   if (item.content_type === 'movie' && item.movie) {
                     return (
-                      <Card key={item.id} className="bg-gray-900 border-gray-800">
-                        <Link href={`/watch/movie/${item.movie.id}`}>
-                          <CardContent className="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-800/50 transition">
-                            <div className="relative w-20 h-28 shrink-0">
-                              <img
-                                src={item.movie.thumbnail || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100'}
-                                alt={item.movie.title}
-                                className="w-full h-full object-cover rounded"
-                                onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100' }}
-                              />
-                              {progressPct > 0 && (
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 rounded-b">
-                                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPct}%` }} />
-                                  </div>
+                      <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-900 border border-gray-800 rounded-lg hover:bg-gray-800/50 transition group">
+                        <Link href={`/watch/movie/${item.movie.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="relative w-10 h-14 shrink-0 rounded overflow-hidden">
+                            <img
+                              src={item.movie.thumbnail || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100'}
+                              alt={item.movie.title}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100' }}
+                            />
+                            {progressPct > 0 && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-0.5 py-px">
+                                <div className="h-0.5 bg-gray-700 rounded-full overflow-hidden">
+                                  <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPct}%` }} />
                                 </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{item.movie.title}</h3>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                              <Play className="w-2.5 h-2.5" /> فيلم
+                              {progressPct > 0 && (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-red-400">{elapsedMin}:{elapsedSec}</span>
+                                  <span className="text-gray-500">({progressPct}%)</span>
+                                </>
                               )}
+                              <span>·</span>
+                              <span className="text-gray-500">{new Date(item.watched_at).toLocaleDateString('ar')}</span>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-lg truncate hover:text-red-500 transition">{item.movie.title}</h3>
-                              <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                                <Play className="w-3 h-3" /> فيلم
-                                {progressPct > 0 && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-red-400">{elapsedMin}:{elapsedSec}</span>
-                                    <span className="text-xs">({progressPct}%)</span>
-                                  </>
-                                )}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                شاهدت في: {new Date(item.watched_at).toLocaleDateString('ar')}
-                              </div>
-                            </div>
-                            <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0">
-                              <Play className="w-4 h-4 ml-1" />
-                              {progressPct > 0 ? 'متابعة' : 'مشاهدة'}
-                            </Button>
-                          </CardContent>
+                          </div>
+                          <span className="text-xs text-red-500 shrink-0 hidden sm:block">{progressPct > 0 ? 'متابعة' : 'مشاهدة'}</span>
                         </Link>
-                      </Card>
+                        <button
+                          onClick={(e) => { e.preventDefault(); removeFromHistory(item.id) }}
+                          className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition opacity-0 group-hover:opacity-100 shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )
                   }
 
                   if (item.episode) {
                     const seriesTitle = item.season?.title || 'مسلسل'
                     return (
-                      <Card key={item.id} className="bg-gray-900 border-gray-800">
-                        <Link href={item.seriesId ? `/watch/series/${item.seriesId}?episode=${item.episode.id}` : '#'}>
-                          <CardContent className="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-800/50 transition">
-                            <div className="relative w-20 h-28 bg-gray-800 rounded flex items-center justify-center shrink-0">
-                              {item.episode.thumbnail ? (
-                                <img
-                                  src={item.episode.thumbnail}
-                                  alt={item.episode.title}
-                                  className="w-full h-full object-cover rounded"
-                                  onError={(e) => { e.target.style.display = 'none' }}
-                                />
-                              ) : (
-                                <Disc className="w-8 h-8 text-gray-600" />
-                              )}
-                              {progressPct > 0 && (
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 rounded-b">
-                                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPct}%` }} />
-                                  </div>
+                      <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-900 border border-gray-800 rounded-lg hover:bg-gray-800/50 transition group">
+                        <Link href={item.seriesId ? `/watch/series/${item.seriesId}?episode=${item.episode.id}` : '#'} className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="relative w-10 h-14 shrink-0 rounded bg-gray-800 flex items-center justify-center">
+                            <Disc className="w-4 h-4 text-gray-600" />
+                            {progressPct > 0 && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-0.5 py-px">
+                                <div className="h-0.5 bg-gray-700 rounded-full overflow-hidden">
+                                  <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPct}%` }} />
                                 </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{item.episode.title || `الحلقة ${item.episode.episode_number}`}</h3>
+                            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                              <Play className="w-2.5 h-2.5" /> {seriesTitle}
+                              {progressPct > 0 && (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-red-400">{elapsedMin}:{elapsedSec}</span>
+                                  <span className="text-gray-500">({progressPct}%)</span>
+                                </>
                               )}
+                              <span>·</span>
+                              <span className="text-gray-500">{new Date(item.watched_at).toLocaleDateString('ar')}</span>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-lg truncate hover:text-red-500 transition">
-                                {item.episode.title || `الحلقة ${item.episode.episode_number}`}
-                              </h3>
-                              <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                                <Play className="w-3 h-3" /> حلقة - {seriesTitle}
-                                {progressPct > 0 && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-red-400">{elapsedMin}:{elapsedSec}</span>
-                                    <span className="text-xs">({progressPct}%)</span>
-                                  </>
-                                )}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                شاهدت في: {new Date(item.watched_at).toLocaleDateString('ar')}
-                              </div>
-                            </div>
-                            <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0">
-                              <Play className="w-4 h-4 ml-1" />
-                              {progressPct > 0 ? 'متابعة' : 'مشاهدة'}
-                            </Button>
-                          </CardContent>
+                          </div>
+                          <span className="text-xs text-red-500 shrink-0 hidden sm:block">{progressPct > 0 ? 'متابعة' : 'مشاهدة'}</span>
                         </Link>
-                      </Card>
+                        <button
+                          onClick={(e) => { e.preventDefault(); removeFromHistory(item.id) }}
+                          className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition opacity-0 group-hover:opacity-100 shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )
                   }
 
