@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,6 +20,7 @@ function sanitize(str) {
 export default function WatchSeries() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const [user, setUser] = useState(null)
   const [show, setShow] = useState(null)
@@ -37,6 +38,7 @@ export default function WatchSeries() {
   const [showFullDesc, setShowFullDesc] = useState(false)
   const [episodeProgress, setEpisodeProgress] = useState({})
   const [resumeTime, setResumeTime] = useState(0)
+  const targetEpisodeId = searchParams.get('episode')
 
   useEffect(() => {
     loadSeries()
@@ -135,6 +137,21 @@ export default function WatchSeries() {
       })
       setEpisodeProgress(progressMap)
 
+      // Priority 1: Deep-link from URL ?episode={id}
+      if (targetEpisodeId) {
+        for (const s of withEpisodes) {
+          const found = s.episodes.find(e => e.id === targetEpisodeId)
+          if (found) {
+            setSelectedSeason(s)
+            setSelectedEpisode(found)
+            const prog = progressMap[found.id]
+            setResumeTime(prog?.time || 0)
+            return
+          }
+        }
+      }
+
+      // Priority 2: Auto-select last watched episode
       if (historyList.length > 0) {
         const lastEpId = historyList[0].episode_id
         for (const s of withEpisodes) {

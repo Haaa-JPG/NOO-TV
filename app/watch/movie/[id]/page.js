@@ -249,6 +249,14 @@ export default function WatchMovie() {
         duration,
         watched_at: new Date().toISOString()
       }).eq('id', existing.id)
+    } else {
+      await supabase.from('watch_history').insert({
+        user_id: user.id,
+        content_id: params.id,
+        content_type: 'movie',
+        watched_time: watchedTime,
+        duration
+      })
     }
   }
 

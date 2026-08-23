@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Heart, Clock, Settings, LogOut, Play } from 'lucide-react'
+import { Heart, Clock, Settings, LogOut, Play, Disc } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 
@@ -88,7 +88,7 @@ export default function UserDashboard() {
     // Load watch history (movies + episodes)
     const { data: historyData } = await supabase
       .from('watch_history')
-      .select('*, episodes(*)')
+      .select('*, episodes(*, seasons(series_id, title, season_number))')
       .eq('user_id', userId)
       .order('watched_at', { ascending: false })
       .limit(40)
@@ -109,9 +109,10 @@ export default function UserDashboard() {
       if (h.content_type === 'movie') {
         return { ...h, movie: movieHistory[h.content_id] || null }
       }
-      // Episode entries carry the episode via the embedded relation.
-      // Resolve episode -> season -> series for a nicer title.
-      return { ...h, episode: h.episodes || null }
+      const ep = h.episodes || null
+      const season = ep?.seasons || null
+      const seriesId = season?.series_id || null
+      return { ...h, episode: ep, season, seriesId }
     })
 
     setWatchHistory(enriched)
@@ -253,48 +254,108 @@ export default function UserDashboard() {
             ) : (
               <div className="space-y-3">
                 {watchHistory.map((item) => {
-                  // Movie entries
+                  const progressPct = item.watched_time && item.duration && item.duration > 0
+                    ? Math.min(100, Math.round((item.watched_time / item.duration) * 100))
+                    : 0
+                  const elapsed = item.watched_time || 0
+                  const elapsedMin = Math.floor(elapsed / 60)
+                  const elapsedSec = String(elapsed % 60).padStart(2, '0')
+
                   if (item.content_type === 'movie' && item.movie) {
                     return (
                       <Card key={item.id} className="bg-gray-900 border-gray-800">
-                        <CardContent className="p-4 flex items-center gap-4">
-                          <img
-                            src={item.movie.thumbnail || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100'}
-                            alt={item.movie.title}
-                            className="w-20 h-28 object-cover rounded"
-                          />
-                          <div className="flex-1">
-                            <Link href={`/watch/movie/${item.movie.id}`} className="hover:text-red-500 transition">
-                              <h3 className="font-bold text-lg">{item.movie.title}</h3>
-                            </Link>
-                            <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                              <Play className="w-3 h-3" /> فيلم
-                              <span>•</span>
-                              <span>شاهدت في: {new Date(item.watched_at).toLocaleDateString('ar')}</span>
+                        <Link href={`/watch/movie/${item.movie.id}`}>
+                          <CardContent className="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-800/50 transition">
+                            <div className="relative w-20 h-28 shrink-0">
+                              <img
+                                src={item.movie.thumbnail || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100'}
+                                alt={item.movie.title}
+                                className="w-full h-full object-cover rounded"
+                                onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=100' }}
+                              />
+                              {progressPct > 0 && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 rounded-b">
+                                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                                    <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPct}%` }} />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        </CardContent>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-lg truncate hover:text-red-500 transition">{item.movie.title}</h3>
+                              <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
+                                <Play className="w-3 h-3" /> فيلم
+                                {progressPct > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-red-400">{elapsedMin}:{elapsedSec}</span>
+                                    <span className="text-xs">({progressPct}%)</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                شاهدت في: {new Date(item.watched_at).toLocaleDateString('ar')}
+                              </div>
+                            </div>
+                            <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0">
+                              <Play className="w-4 h-4 ml-1" />
+                              {progressPct > 0 ? 'متابعة' : 'مشاهدة'}
+                            </Button>
+                          </CardContent>
+                        </Link>
                       </Card>
                     )
                   }
 
-                  // Episode entries
                   if (item.episode) {
+                    const seriesTitle = item.season?.title || 'مسلسل'
                     return (
                       <Card key={item.id} className="bg-gray-900 border-gray-800">
-                        <CardContent className="p-4 flex items-center gap-4">
-                          <div className="w-20 h-28 bg-gray-800 rounded flex items-center justify-center">
-                            <Play className="w-6 h-6 text-gray-500" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-bold text-lg">{item.episode.title || `الحلقة ${item.episode.episode_number}`}</h3>
-                            <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
-                              <Play className="w-3 h-3" /> حلقة مسلسل (تعرف على المسلسل من صفحة المشاهدة)
-                              <span>•</span>
-                              <span>شاهدت في: {new Date(item.watched_at).toLocaleDateString('ar')}</span>
+                        <Link href={item.seriesId ? `/watch/series/${item.seriesId}?episode=${item.episode.id}` : '#'}>
+                          <CardContent className="p-4 flex items-center gap-4 cursor-pointer hover:bg-gray-800/50 transition">
+                            <div className="relative w-20 h-28 bg-gray-800 rounded flex items-center justify-center shrink-0">
+                              {item.episode.thumbnail ? (
+                                <img
+                                  src={item.episode.thumbnail}
+                                  alt={item.episode.title}
+                                  className="w-full h-full object-cover rounded"
+                                  onError={(e) => { e.target.style.display = 'none' }}
+                                />
+                              ) : (
+                                <Disc className="w-8 h-8 text-gray-600" />
+                              )}
+                              {progressPct > 0 && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-1 py-0.5 rounded-b">
+                                  <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                                    <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPct}%` }} />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        </CardContent>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-lg truncate hover:text-red-500 transition">
+                                {item.episode.title || `الحلقة ${item.episode.episode_number}`}
+                              </h3>
+                              <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
+                                <Play className="w-3 h-3" /> حلقة - {seriesTitle}
+                                {progressPct > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-red-400">{elapsedMin}:{elapsedSec}</span>
+                                    <span className="text-xs">({progressPct}%)</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                شاهدت في: {new Date(item.watched_at).toLocaleDateString('ar')}
+                              </div>
+                            </div>
+                            <Button size="sm" className="bg-red-600 hover:bg-red-700 shrink-0">
+                              <Play className="w-4 h-4 ml-1" />
+                              {progressPct > 0 ? 'متابعة' : 'مشاهدة'}
+                            </Button>
+                          </CardContent>
+                        </Link>
                       </Card>
                     )
                   }
