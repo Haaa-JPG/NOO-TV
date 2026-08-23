@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { signIn, signUp, signInWithGoogle, ensureUserProfile, supabase } from '@/lib/supabase'
+import { signIn, signInWithGoogle, ensureUserProfile, supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,10 +37,13 @@ if (isLogin) {
           const { data, error } = await signIn(formData.email, formData.password)
           if (error) {
             if (error.message.includes('Email not confirmed') || error.message.includes('email not confirmed')) {
-              throw new Error('يجب تأكيد البريد الإلكتروني أولاً. تحقق من صندوق الوارد.')
+              throw new Error('يجب تأكيد البريد الإلكتروني أولاً. يرجى المحاولة مرة أخرى.')
             }
             if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
-              throw new Error('بريد إلكتروني أو كلمة مرور غير صحيحة')
+              throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة')
+            }
+            if (error.message.includes('rate limit') || error.message.includes('too many')) {
+              throw new Error('تم تجاوز حد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.')
             }
             throw error
           }
@@ -71,25 +74,42 @@ if (isLogin) {
         })
         router.push(redirectTo)
       } else {
-        const { data, error } = await signUp(formData.email, formData.password, formData.displayName)
-        if (error) {
-          if (error.message.includes('rate limit') || error.message.includes('too many')) {
-            throw new Error('تم تجاوز حد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.')
-          }
-          throw error
+        const signupRes = await fetch('/api/auth-direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            displayName: formData.displayName
+          })
+        })
+        const signupData = await signupRes.json()
+
+        if (!signupRes.ok || signupData.error) {
+          throw new Error(signupData.error || 'فشل إنشاء الحساب')
         }
 
         toast({
           title: 'تم إنشاء الحساب بنجاح',
-          description: 'تم إرسال رابط تأكيد إلى بريدك الإلكتروني. يرجى تفعيل الحساب قبل تسجيل الدخول.'
+          description: 'جاري تسجيل الدخول...'
         })
 
-        // If email confirmation is disabled, proceed to login
-        if (data?.user) {
-          await ensureUserProfile(data.user)
+        const { data: loginData, error: loginError } = await signIn(formData.email, formData.password)
+        if (loginError) {
+          setIsLogin(true)
+          setFormData(prev => ({ ...prev, displayName: '' }))
+          return
         }
 
-        setTimeout(() => setIsLogin(true), 3000)
+        if (loginData?.user) {
+          await ensureUserProfile(loginData.user)
+        }
+
+        toast({
+          title: 'تم تسجيل الدخول بنجاح',
+          description: 'مرحباً بك!'
+        })
+        router.push(redirectTo)
       }
     } catch (error) {
       toast({
