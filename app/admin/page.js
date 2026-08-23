@@ -940,17 +940,17 @@ export default function AdminPanel() {
                           className="bg-black border-gray-700"
                           placeholder="https://z.3isk.news/video/..."
                         />
-                        <p className="text-xs text-gray-500 mt-1">الرابط الدائم لصفحة المصدر - يتم تحديث رابط البث تلقائياً</p>
+                        <p className="text-xs text-gray-500 mt-1">رابط صفحة المصدر فقط - يتم تحديث رابط البث تلقائياً</p>
                       </div>
                       <div>
-                        <Label>رابط الفيديو (مباشر)</Label>
+                        <Label>رابط الفيديو</Label>
                         <Input
                           value={movieForm.embed_url}
                           onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
                           className="bg-black border-gray-700"
-                          placeholder="رابط m3u8 أو YouTube أو صفحة المصدر"
+                          placeholder=".mp4 / .m3u8 / YouTube / iframe embed"
                         />
-                        <p className="text-xs text-gray-500 mt-1">إذا كان رابط مصدر، يتم استخراج رابط البث تلقائياً</p>
+                        <p className="text-xs text-gray-500 mt-1">يدعم: رابط مباشر (.mp4), بث (.m3u8), YouTube, أو كود embed من أي موقع</p>
                       </div>
                     </div>
 
@@ -1339,12 +1339,12 @@ export default function AdminPanel() {
                                         </div>
                                       </div>
                                       <div>
-                                        <Label>رابط الصفحة المصدر</Label>
+                                        <Label>رابط الفيديو</Label>
                                         <Input
                                           value={episodeForm.embed_url}
                                           onChange={(e) => setEpisodeForm({ ...episodeForm, embed_url: e.target.value })}
                                           className="bg-black border-gray-700"
-                                          placeholder="https://z.3isk.news/video/episode-..."
+                                          placeholder=".mp4 / .m3u8 / YouTube / صفحة المصدر"
                                           required
                                         />
                                       </div>
