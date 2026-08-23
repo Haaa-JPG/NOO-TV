@@ -345,6 +345,8 @@ export default function AdminPanel() {
       if (!heroForm.media_url) throw new Error('رابط الوسيلة مطلوب')
       const dataToSave = {
         ...heroForm,
+        series_id: heroForm.series_id || null,
+        episode_id: heroForm.episode_id || null,
         start_time: mmssToSeconds(heroTimeStart),
         end_time: mmssToSeconds(heroTimeEnd),
       }
