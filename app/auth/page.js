@@ -33,9 +33,17 @@ function AuthContent() {
     setLoading(true)
 
     try {
-      if (isLogin) {
-        const { data, error } = await signIn(formData.email, formData.password)
-        if (error) throw error
+if (isLogin) {
+          const { data, error } = await signIn(formData.email, formData.password)
+          if (error) {
+            if (error.message.includes('Email not confirmed') || error.message.includes('email not confirmed')) {
+              throw new Error('يجب تأكيد البريد الإلكتروني أولاً. تحقق من صندوق الوارد.')
+            }
+            if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
+              throw new Error('بريد إلكتروني أو كلمة مرور غير صحيحة')
+            }
+            throw error
+          }
 
         if (data?.user) {
           await ensureUserProfile(data.user)
@@ -64,11 +72,16 @@ function AuthContent() {
         router.push(redirectTo)
       } else {
         const { data, error } = await signUp(formData.email, formData.password, formData.displayName)
-        if (error) throw error
+        if (error) {
+          if (error.message.includes('rate limit') || error.message.includes('too many')) {
+            throw new Error('تم تجاوز حد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.')
+          }
+          throw error
+        }
 
         toast({
           title: 'تم إنشاء الحساب بنجاح',
-          description: 'يرجى تفعيل الحساب من بريدك الإلكتروني'
+          description: 'تم إرسال رابط تأكيد إلى بريدك الإلكتروني. يرجى تفعيل الحساب قبل تسجيل الدخول.'
         })
 
         // If email confirmation is disabled, proceed to login
@@ -76,7 +89,7 @@ function AuthContent() {
           await ensureUserProfile(data.user)
         }
 
-        setTimeout(() => setIsLogin(true), 2000)
+        setTimeout(() => setIsLogin(true), 3000)
       }
     } catch (error) {
       toast({
@@ -92,7 +105,12 @@ function AuthContent() {
   const handleGoogleSignIn = async () => {
     try {
       const { error } = await signInWithGoogle()
-      if (error) throw error
+      if (error) {
+        if (error.message.includes('provider') || error.message.includes('Google') || error.message.includes('oauth')) {
+          throw new Error('تسجيل الدخول بـ Google غير مُفعّل حالياً. يرجى استخدام البريد الإلكتروني.')
+        }
+        throw error
+      }
     } catch (error) {
       toast({
         title: 'حدث خطأ',
