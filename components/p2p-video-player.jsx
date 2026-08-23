@@ -18,16 +18,22 @@ function P2PVideoPlayer({
   const videoRef = useRef(null)
   const clientRef = useRef(null)
   const torrentRef = useRef(null)
-  const [status, setStatus] = useState('connecting')
-  const [peers, setPeers] = useState(0)
-  const [downloaded, setDownloaded] = useState(0)
-  const [uploaded, setUploaded] = useState(0)
+  const p2pActiveRef = useRef(false)
   const onProgressRef = useRef(onProgress)
   const initialTimeRef = useRef(initialTime)
 
   onProgressRef.current = onProgress
   initialTimeRef.current = initialTime
 
+  // Play video immediately via direct HTTP (silent fallback)
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !src) return
+    video.src = src
+    video.load()
+  }, [src])
+
+  // Background P2P - completely silent, no UI
   useEffect(() => {
     if (!src) return
 
@@ -36,8 +42,6 @@ function P2PVideoPlayer({
 
     const initP2P = async () => {
       try {
-        setStatus('connecting')
-        
         const WebTorrent = (await import('webtorrent')).default
         client = new WebTorrent({ 
           tracker: { rtcConfig: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } }
@@ -45,8 +49,7 @@ function P2PVideoPlayer({
         clientRef.current = client
 
         client.on('error', (err) => {
-          console.error('WebTorrent error:', err)
-          if (!cancelled) onError?.(err.message)
+          console.debug('WebTorrent error (silent):', err.message)
         })
 
         const torrent = await new Promise((resolve, reject) => {
@@ -65,40 +68,20 @@ function P2PVideoPlayer({
 
         torrent.on('ready', () => {
           if (cancelled) return
-          setStatus('ready')
           const file = torrent.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'))
-          if (file) {
-            const video = videoRef.current
-            if (video) {
-              file.renderTo(video, { autoplay: true }, (err) => {
-                if (err) {
-                  console.error('Render error:', err)
-                  onError?.(err.message)
-                }
-              })
-            }
+          if (file && videoRef.current) {
+            // Try to render via P2P - if it works, video will switch seamlessly
+            file.renderTo(videoRef.current, { autoplay: true }, (err) => {
+              if (!err) {
+                p2pActiveRef.current = true
+                console.debug('P2P streaming active')
+              }
+            })
           }
         })
 
-        torrent.on('download', () => {
-          if (cancelled) return
-          setDownloaded(torrent.downloaded)
-          setUploaded(torrent.uploaded)
-          const totalPeers = torrent.numPeers
-          setPeers(totalPeers)
-        })
-
-        torrent.on('wire', (wire) => {
-          wire.on('download', () => setPeers(torrent.numPeers))
-          wire.on('close', () => setPeers(torrent.numPeers))
-        })
-
       } catch (err) {
-        console.error('P2P init failed:', err)
-        if (!cancelled) {
-          setStatus('error')
-          onError?.(err.message)
-        }
+        console.debug('P2P init failed (silent):', err.message)
       }
     }
 
@@ -115,8 +98,9 @@ function P2PVideoPlayer({
         clientRef.current = null
       }
     }
-  }, [src, onError])
+  }, [src])
 
+  // Seek to initial time
   useEffect(() => {
     const video = videoRef.current
     if (!video || !initialTimeRef.current) return
@@ -130,6 +114,7 @@ function P2PVideoPlayer({
     return () => video.removeEventListener('loadedmetadata', seek)
   }, [])
 
+  // Progress tracking
   useEffect(() => {
     const video = videoRef.current
     if (!video || !onProgressRef.current) return
@@ -153,45 +138,16 @@ function P2PVideoPlayer({
     }
   }, [])
 
+  // Clean render - NO P2P UI AT ALL
   return (
-    <div className="relative w-full h-full">
-      <video
-        ref={videoRef}
-        controls
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
-      
-      {status === 'connecting' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-          <div className="text-center space-y-2">
-            <div className="w-12 h-12 border-4 border-red-600/30 rounded-full flex items-center justify-center mx-auto">
-              <span className="text-red-400 text-xl">◉</span>
-            </div>
-            <p className="text-white text-sm">جاري الاتصال بالشبكة الند للند...</p>
-            <p className="text-gray-500 text-xs">الزملاء المتصلون: {peers}</p>
-          </div>
-        </div>
-      )}
-      
-      {status === 'ready' && peers > 0 && (
-        <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-2">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          P2P نشط: {peers} زملاء
-        </div>
-      )}
-      
-      {status === 'error' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-          <div className="text-center space-y-2">
-            <p className="text-red-400">خطأ في الاتصال P2P</p>
-            <p className="text-gray-500 text-sm">سيتم التبديل للبث المباشر...</p>
-          </div>
-        </div>
-      )}
-    </div>
+    <video
+      ref={videoRef}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-contain bg-black"
+      title={title}
+    />
   )
 }
 
