@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { Client } from 'pg'
 
 const getClient = () => new Client({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres.ykrslhhpjgfqkyutlxbx:Hashim.2001664933-2008@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres',
   ssl: { rejectUnauthorized: false }
 })
 
