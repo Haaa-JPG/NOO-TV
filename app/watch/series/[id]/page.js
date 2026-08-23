@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,7 @@ export default function WatchSeries() {
   const [episodeProgress, setEpisodeProgress] = useState({})
   const [resumeTime, setResumeTime] = useState(0)
   const targetEpisodeId = searchParams.get('episode')
+  const userRef = useRef(null)
 
   useEffect(() => {
     loadSeries()
@@ -56,6 +57,7 @@ export default function WatchSeries() {
         return
       }
       setUser(u)
+      userRef.current = u
       checkWatchlist(u.id)
       loadUserRating(u.id)
       if (show) {
@@ -73,7 +75,7 @@ export default function WatchSeries() {
 
     if (data) {
       setShow(data)
-      await loadSeasons(data.id)
+      await loadSeasons(data.id, userRef.current)
       loadComments(data.id)
       let sessionId = localStorage.getItem('nootv_session')
       if (!sessionId) {
