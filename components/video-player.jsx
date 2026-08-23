@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useEffect, useState, useCallback } from 'react'
 import P2PVideoPlayer from './p2p-video-player'
+import CustomControls from './custom-controls'
 
 const EXTRACT_API = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
 
@@ -194,14 +195,16 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <video
-      ref={videoRef}
-      controls
-      autoPlay
-      playsInline
-      className="absolute inset-0 w-full h-full object-contain bg-black"
-      title={title}
-    />
+    <div className="absolute inset-0 w-full h-full bg-black">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        title={title}
+      />
+      <CustomControls videoRef={videoRef} />
+    </div>
   )
 }
 
@@ -382,15 +385,17 @@ function DirectVideo({ src, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <video
-      ref={videoRef}
-      src={src}
-      controls
-      autoPlay
-      playsInline
-      className="absolute inset-0 w-full h-full object-contain bg-black"
-      title={title}
-    />
+    <div className="absolute inset-0 w-full h-full bg-black">
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        title={title}
+      />
+      <CustomControls videoRef={videoRef} />
+    </div>
   )
 }
 
@@ -403,10 +408,13 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const prevUrlRef = useRef(null)
 
   const currentUrl = activeStreamUrl || url
-  if (prevUrlRef.current !== currentUrl) {
+
+  useEffect(() => {
+    if (prevUrlRef.current !== null && prevUrlRef.current !== currentUrl && introUrl) {
+      setIntroEnded(false)
+    }
     prevUrlRef.current = currentUrl
-    if (introUrl) setIntroEnded(false)
-  }
+  }, [currentUrl, introUrl])
 
   useEffect(() => {
     import('@/lib/supabase').then(({ supabase }) => {
