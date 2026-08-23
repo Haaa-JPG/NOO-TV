@@ -192,6 +192,10 @@ export default function AdminPanel() {
   const [editingHero, setEditingHero] = useState(null)
   const [heroSaving, setHeroSaving] = useState(false)
 
+  // Intro video
+  const [introVideoUrl, setIntroVideoUrl] = useState('')
+  const [savingIntro, setSavingIntro] = useState(false)
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -283,11 +287,34 @@ export default function AdminPanel() {
       .select('*')
       .order('display_order', { ascending: true })
     if (heroData) setHeroItems(heroData)
+
+    // Load intro video
+    const { data: introData } = await supabase
+      .from('site_settings')
+      .select('setting_value')
+      .eq('setting_key', 'intro_video_url')
+      .maybeSingle()
+    if (introData?.setting_value) setIntroVideoUrl(introData.setting_value)
   }
 
   const loadHeroItems = async () => {
     const { data } = await supabase.from('featured_hero').select('*').order('display_order', { ascending: true })
     if (data) setHeroItems(data)
+  }
+
+  const saveIntroVideo = async () => {
+    setSavingIntro(true)
+    try {
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({ setting_key: 'intro_video_url', setting_value: introVideoUrl, value_type: 'string' }, { onConflict: 'setting_key' })
+      if (error) throw error
+      toast({ title: 'تم حفظ فيديو المقدمة' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    } finally {
+      setSavingIntro(false)
+    }
   }
 
   const handleHeroSubmit = async (e) => {
@@ -1820,6 +1847,35 @@ export default function AdminPanel() {
 
           {/* ================= HERO BANNER ================= */}
           <TabsContent value="hero">
+            <Card className="bg-gray-900 border-gray-800 mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Play className="w-5 h-5 text-red-600" />
+                  فيديو المقدمة (Intro)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-gray-400 mb-3">يُعرض هذا الفيديو قبل بدء أي فيلم أو حلقة مسلسل (لا يمكن تخطيه)</p>
+                <div className="flex gap-2">
+                  <Input
+                    value={introVideoUrl}
+                    onChange={(e) => setIntroVideoUrl(e.target.value)}
+                    className="bg-black border-gray-700 flex-1"
+                    placeholder="https://example.com/intro.mp4"
+                  />
+                  <Button onClick={saveIntroVideo} disabled={savingIntro} className="bg-red-600 hover:bg-red-700 shrink-0">
+                    {savingIntro ? 'جاري الحفظ...' : 'حفظ'}
+                  </Button>
+                </div>
+                {introVideoUrl && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1">معاينة:</p>
+                    <video src={introVideoUrl} controls className="w-full max-w-md rounded-lg border border-gray-700" style={{ maxHeight: 160 }} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
