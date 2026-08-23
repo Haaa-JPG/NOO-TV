@@ -58,6 +58,9 @@ export default function WatchSeries() {
       setUser(u)
       checkWatchlist(u.id)
       loadUserRating(u.id)
+      if (show) {
+        loadSeasons(show.id, u)
+      }
     }
   }
 
@@ -92,7 +95,8 @@ export default function WatchSeries() {
     setLoading(false)
   }
 
-  const loadSeasons = async (seriesId) => {
+  const loadSeasons = async (seriesId, userOverride) => {
+    const currentUser = userOverride || user
     const { data: seasonsData } = await supabase
       .from('seasons')
       .select('*')
@@ -120,11 +124,11 @@ export default function WatchSeries() {
 
     setSeasons(withEpisodes)
 
-    if (user) {
+    if (currentUser) {
       const { data: history } = await supabase
         .from('watch_history')
         .select('episode_id, watched_time, duration, watched_at')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUser.id)
         .eq('content_type', 'episode')
         .order('watched_at', { ascending: false })
 
