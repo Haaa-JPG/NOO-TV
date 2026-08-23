@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { supabase, getCurrentUser, getUserProfile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -39,14 +39,12 @@ export default function WatchSeries() {
   const [episodeProgress, setEpisodeProgress] = useState({})
   const [resumeTime, setResumeTime] = useState(0)
   const targetEpisodeId = searchParams.get('episode')
-  const userRef = useRef(null)
 
   useEffect(() => {
-    loadSeries()
-    checkUser()
+    initSeries()
   }, [params.id])
 
-  const checkUser = async () => {
+  const initSeries = async () => {
     const { user: u } = await getCurrentUser()
     if (u) {
       const profile = await getUserProfile(u.id)
@@ -57,16 +55,10 @@ export default function WatchSeries() {
         return
       }
       setUser(u)
-      userRef.current = u
       checkWatchlist(u.id)
       loadUserRating(u.id)
-      if (show) {
-        loadSeasons(show.id, u)
-      }
     }
-  }
 
-  const loadSeries = async () => {
     const { data } = await supabase
       .from('series')
       .select('*')
@@ -75,7 +67,7 @@ export default function WatchSeries() {
 
     if (data) {
       setShow(data)
-      await loadSeasons(data.id, userRef.current)
+      await loadSeasons(data.id, u)
       loadComments(data.id)
       let sessionId = localStorage.getItem('nootv_session')
       if (!sessionId) {
@@ -97,8 +89,7 @@ export default function WatchSeries() {
     setLoading(false)
   }
 
-  const loadSeasons = async (seriesId, userOverride) => {
-    const currentUser = userOverride || user
+  const loadSeasons = async (seriesId, currentUser) => {
     const { data: seasonsData } = await supabase
       .from('seasons')
       .select('*')

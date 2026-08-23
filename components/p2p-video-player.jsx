@@ -20,9 +20,10 @@ function P2PVideoPlayer({
   const torrentRef = useRef(null)
   const p2pActiveRef = useRef(false)
   const onProgressRef = useRef(onProgress)
-  const seekedRef = useRef(false)
+  const initialTimeRef = useRef(initialTime)
 
   onProgressRef.current = onProgress
+  initialTimeRef.current = initialTime
 
   // Play video immediately via direct HTTP (silent fallback)
   useEffect(() => {
@@ -103,36 +104,28 @@ function P2PVideoPlayer({
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-    seekedRef.current = false
 
     const doSeek = () => {
-      if (initialTime > 0 && video.duration && video.duration > 0) {
-        video.currentTime = initialTime
-        seekedRef.current = true
-      }
-    }
-
-    const trySeek = () => {
-      if (!seekedRef.current && initialTime > 0 && video.duration > 0 && video.currentTime < initialTime - 2) {
-        video.currentTime = initialTime
-        seekedRef.current = true
+      const t = initialTimeRef.current
+      if (t && video.duration && video.duration > 0 && video.currentTime < t - 2) {
+        video.currentTime = t
       }
     }
 
     video.addEventListener('loadedmetadata', doSeek)
-    video.addEventListener('canplay', trySeek)
-    video.addEventListener('playing', trySeek)
 
-    if (video.readyState >= 1 && initialTime > 0) {
-      doSeek()
+    const onTimeUpdate = () => {
+      if (initialTimeRef.current && video.duration && video.currentTime < 1 && initialTimeRef.current > 1) {
+        video.currentTime = initialTimeRef.current
+      }
     }
+    video.addEventListener('timeupdate', onTimeUpdate)
 
     return () => {
       video.removeEventListener('loadedmetadata', doSeek)
-      video.removeEventListener('canplay', trySeek)
-      video.removeEventListener('playing', trySeek)
+      video.removeEventListener('timeupdate', onTimeUpdate)
     }
-  }, [initialTime])
+  }, [])
 
   // Progress tracking
   useEffect(() => {

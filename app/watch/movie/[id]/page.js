@@ -34,11 +34,10 @@ export default function WatchMovie() {
   const [resumeTime, setResumeTime] = useState(0)
 
   useEffect(() => {
-    loadMovie()
-    checkUser()
+    initMovie()
   }, [params.id])
 
-  const checkUser = async () => {
+  const initMovie = async () => {
     const { user: u } = await getCurrentUser()
     if (u) {
       const profile = await getUserProfile(u.id)
@@ -51,8 +50,34 @@ export default function WatchMovie() {
       setUser(u)
       checkWatchlist(u.id)
       loadUserRating(u.id)
-      recordWatchHistory(u.id)
     }
+
+    const { data } = await supabase.from('movies').select('*').eq('id', params.id).single()
+    if (data) {
+      setMovie(data)
+      let sessionId = localStorage.getItem('nootv_session')
+      if (!sessionId) {
+        sessionId = crypto.randomUUID()
+        localStorage.setItem('nootv_session', sessionId)
+      }
+      const { data: existing } = await supabase
+        .from('view_tracking')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('content_type', 'movie')
+        .eq('content_id', params.id)
+        .maybeSingle()
+      if (!existing) {
+        await supabase.from('view_tracking').insert({ session_id: sessionId, content_type: 'movie', content_id: params.id })
+        await supabase.rpc('increment_movie_views', { movie_id: params.id })
+      }
+      loadComments(params.id)
+
+      if (u) {
+        await recordWatchHistory(u.id)
+      }
+    }
+    setLoading(false)
   }
 
   const recordWatchHistory = async (userId) => {
@@ -80,31 +105,6 @@ export default function WatchMovie() {
         content_type: 'movie',
       })
     }
-  }
-
-  const loadMovie = async () => {
-    const { data } = await supabase.from('movies').select('*').eq('id', params.id).single()
-    if (data) {
-      setMovie(data)
-      let sessionId = localStorage.getItem('nootv_session')
-      if (!sessionId) {
-        sessionId = crypto.randomUUID()
-        localStorage.setItem('nootv_session', sessionId)
-      }
-      const { data: existing } = await supabase
-        .from('view_tracking')
-        .select('id')
-        .eq('session_id', sessionId)
-        .eq('content_type', 'movie')
-        .eq('content_id', params.id)
-        .maybeSingle()
-      if (!existing) {
-        await supabase.from('view_tracking').insert({ session_id: sessionId, content_type: 'movie', content_id: params.id })
-        await supabase.rpc('increment_movie_views', { movie_id: params.id })
-      }
-      loadComments(params.id)
-    }
-    setLoading(false)
   }
 
   const loadComments = async (movieId) => {
