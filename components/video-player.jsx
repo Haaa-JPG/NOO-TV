@@ -1,7 +1,6 @@
 'use client'
 import { useRef, useEffect, useState, useCallback } from 'react'
 import P2PVideoPlayer from './p2p-video-player'
-import CustomControls from './custom-controls'
 
 const EXTRACT_API = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
 
@@ -195,16 +194,14 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-black">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
-      <CustomControls videoRef={videoRef} />
-    </div>
+    <video
+      ref={videoRef}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-contain bg-black"
+      title={title}
+    />
   )
 }
 
@@ -385,17 +382,15 @@ function DirectVideo({ src, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-black">
-      <video
-        ref={videoRef}
-        src={src}
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
-      <CustomControls videoRef={videoRef} />
-    </div>
+    <video
+      ref={videoRef}
+      src={src}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-contain bg-black"
+      title={title}
+    />
   )
 }
 
@@ -404,8 +399,6 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const [introUrl, setIntroUrl] = useState(null)
   const [introChecked, setIntroChecked] = useState(false)
   const [introEnded, setIntroEnded] = useState(false)
-  const [watermark, setWatermark] = useState(null)
-  const [overlayRegions, setOverlayRegions] = useState([])
   const introRef = useRef(null)
   const prevUrlRef = useRef(null)
 
@@ -422,23 +415,11 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
     import('@/lib/supabase').then(({ supabase }) => {
       supabase
         .from('site_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', ['intro_video_url', 'watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size', 'overlay_regions'])
+        .select('setting_value')
+        .eq('setting_key', 'intro_video_url')
+        .maybeSingle()
         .then(({ data }) => {
-          if (data) {
-            const wm = {}
-            data.forEach(row => {
-              if (row.setting_key === 'intro_video_url') setIntroUrl(row.setting_value || null)
-              if (row.setting_key === 'watermark_url' && row.setting_value) wm.url = row.setting_value
-              if (row.setting_key === 'watermark_position') wm.position = row.setting_value || 'top-right'
-              if (row.setting_key === 'watermark_opacity') wm.opacity = row.setting_value || '0.7'
-              if (row.setting_key === 'watermark_size') wm.size = row.setting_value || '80'
-              if (row.setting_key === 'overlay_regions') {
-                try { setOverlayRegions(JSON.parse(row.setting_value || '[]')) } catch {}
-              }
-            })
-            if (wm.url) setWatermark(wm)
-          }
+          setIntroUrl(data?.setting_value || null)
           setIntroChecked(true)
         })
         .catch(() => setIntroChecked(true))
@@ -450,32 +431,6 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   }, [])
 
   const resolvedUrl = activeStreamUrl || url
-
-  const watermarkOverlay = watermark?.url ? (
-    <img
-      src={watermark.url}
-      alt=""
-      className="pointer-events-none absolute z-[15]"
-      style={{
-        width: `${watermark.size || 80}px`,
-        opacity: watermark.opacity || 0.7,
-        ...(watermark.position?.includes('top') ? { top: 12 } : { bottom: 12 }),
-        ...(watermark.position?.includes('left') ? { left: 12 } : watermark.position?.includes('right') ? { right: 12 } : { left: '50%', transform: 'translateX(-50%)' }),
-      }}
-    />
-  ) : null
-
-  const overlayBlocks = overlayRegions.length > 0 ? (
-    <>
-      {overlayRegions.map((r, i) => (
-        <div
-          key={r.id || i}
-          className="absolute bg-black pointer-events-none z-[14]"
-          style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }}
-        />
-      ))}
-    </>
-  ) : null
 
   if (!introChecked) {
     return (
@@ -492,20 +447,16 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (showIntro) {
     return (
-      <div className="absolute inset-0 w-full h-full">
-        <video
-          ref={introRef}
-          key={currentUrl}
-          src={introUrl}
-          autoPlay
-          playsInline
-          controls={false}
-          className="absolute inset-0 w-full h-full object-contain bg-black"
-          onEnded={() => setIntroEnded(true)}
-        />
-        {watermarkOverlay}
-        {overlayBlocks}
-      </div>
+      <video
+        ref={introRef}
+        key={currentUrl}
+        src={introUrl}
+        autoPlay
+        playsInline
+        controls={false}
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        onEnded={() => setIntroEnded(true)}
+      />
     )
   }
 
@@ -540,44 +491,31 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (result.type === 'hls') {
     const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
-    return (
-      <div className="absolute inset-0 w-full h-full">
-        <HlsVideo url={src} title={title} initialTime={initialTime} onProgress={onProgress} />
-        {watermarkOverlay}
-        {overlayBlocks}
-      </div>
-    )
+    return <HlsVideo url={src} title={title} initialTime={initialTime} onProgress={onProgress} />
   }
 
   if (result.type === 'video') {
     const isDirectVideoHost = isVideoHostForSW(result.embed)
     const src = isDirectVideoHost ? result.embed : (shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed)
     return (
-      <div className="absolute inset-0 w-full h-full">
-        <P2PVideoPlayer
-          src={src}
-          title={title}
-          initialTime={initialTime}
-          onProgress={onProgress}
-          onError={() => {}}
-        />
-        {watermarkOverlay}
-        {overlayBlocks}
-      </div>
+      <P2PVideoPlayer 
+        src={src} 
+        title={title} 
+        initialTime={initialTime} 
+        onProgress={onProgress}
+        onError={() => {}}
+      />
     )
   }
 
   return (
-    <div className="absolute inset-0 w-full h-full">
-      <iframe
-        src={result.embed}
-        className="absolute inset-0 w-full h-full bg-black"
-        title={title}
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
-      {watermarkOverlay}
-    </div>
+    <iframe
+      src={result.embed}
+      className="absolute inset-0 w-full h-full bg-black"
+      title={title}
+      allowFullScreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
   )
 }
