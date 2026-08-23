@@ -397,6 +397,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const [introUrl, setIntroUrl] = useState(null)
   const [introChecked, setIntroChecked] = useState(false)
   const [introEnded, setIntroEnded] = useState(false)
+  const [iframeClicked, setIframeClicked] = useState(false)
   const introRef = useRef(null)
   const prevUrlRef = useRef(null)
 
@@ -514,8 +515,13 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
           className="absolute top-[-55px] left-0 w-full h-[calc(100%+55px)] border-0"
           title={title}
           allowFullScreen
-          sandbox="allow-scripts allow-same-origin allow-forms"
         />
+        {!iframeClicked && (
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            onClick={() => setIframeClicked(true)}
+          />
+        )}
       </div>
     </div>
   )
