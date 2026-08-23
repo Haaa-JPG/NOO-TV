@@ -26,11 +26,21 @@ export default function CustomControls({ videoRef, className = '' }) {
   const [seekPreviewPos, setSeekPreviewPos] = useState(0)
   const [showBigPlay, setShowBigPlay] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [speed, setSpeed] = useState(1)
+  const [longPressing, setLongPressing] = useState(false)
+  const [doubleTapRipple, setDoubleTapRipple] = useState(null)
+  const [doubleTapSide, setDoubleTapSide] = useState(null)
 
   const containerRef = useRef(null)
   const seekRef = useRef(null)
   const hideTimer = useRef(null)
   const volumeTimer = useRef(null)
+  const lastTapRef = useRef(0)
+  const lastTapSideRef = useRef(null)
+  const longPressTimer = useRef(null)
+  const longPressActiveRef = useRef(false)
+  const touchStartRef = useRef(null)
+  const rippleTimer = useRef(null)
 
   const video = videoRef?.current
 
@@ -172,17 +182,133 @@ export default function CustomControls({ videoRef, className = '' }) {
     handleSeekMove(e)
   }, [handleSeekMove])
 
+  // Show ripple animation on double-tap side
+  const showRipple = useCallback((side) => {
+    setDoubleTapSide(side)
+    setDoubleTapRipple(true)
+    clearTimeout(rippleTimer.current)
+    rippleTimer.current = setTimeout(() => {
+      setDoubleTapRipple(null)
+      setDoubleTapSide(null)
+    }, 600)
+  }, [])
+
+  // Touch/mouse gesture handling
+  const handleTap = useCallback((e) => {
+    const now = Date.now()
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = e.clientX || (touchStartRef.current?.x ?? 0)
+    const isLeft = (x - rect.left) < rect.width / 2
+    const side = isLeft ? 'left' : 'right'
+    const timeSince = now - lastTapRef.current
+    const sameSide = lastTapSideRef.current === side
+
+    if (timeSince < 300 && sameSide && !longPressActiveRef.current) {
+      // Double tap
+      e.preventDefault()
+      if (isLeft) {
+        skip(-10)
+        showRipple('left')
+      } else {
+        skip(10)
+        showRipple('right')
+      }
+      lastTapRef.current = 0
+      lastTapSideRef.current = null
+    } else {
+      lastTapRef.current = now
+      lastTapSideRef.current = side
+      // Single tap - toggle play (only if not on controls)
+      if (e.target === containerRef.current) {
+        togglePlay()
+      }
+    }
+  }, [skip, togglePlay, showRipple])
+
+  const handleTouchStart = useCallback((e) => {
+    const touch = e.touches[0]
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+    longPressActiveRef.current = false
+
+    clearTimeout(longPressTimer.current)
+    longPressTimer.current = setTimeout(() => {
+      longPressActiveRef.current = true
+      setLongPressing(true)
+      if (video) {
+        video.playbackRate = 2
+      }
+    }, 500)
+  }, [video])
+
+  const handleTouchEnd = useCallback((e) => {
+    clearTimeout(longPressTimer.current)
+    if (longPressActiveRef.current) {
+      longPressActiveRef.current = false
+      setLongPressing(false)
+      if (video) {
+        video.playbackRate = 1
+        setSpeed(1)
+      }
+    }
+    touchStartRef.current = null
+  }, [video])
+
+  const handleTouchMove = useCallback(() => {
+    clearTimeout(longPressTimer.current)
+    touchStartRef.current = null
+  }, [])
+
+  // Keyboard controls
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === ' ') { e.preventDefault(); togglePlay() }
+      if (e.key === 'ArrowRight') skip(10)
+      if (e.key === 'ArrowLeft') skip(-10)
+      if (e.key === 'f') toggleFullscreen()
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (video) video.volume = Math.min(1, video.volume + 0.1)
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (video) video.volume = Math.max(0, video.volume - 0.1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [togglePlay, skip, toggleFullscreen, video])
+
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 z-10 ${className}`}
+      className={`absolute inset-0 z-10 select-none ${className}`}
       onMouseMove={showControls}
       onMouseLeave={() => { if (playing) setVisible(false) }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) togglePlay()
+      onClick={handleTap}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+      onMouseDown={(e) => {
+        touchStartRef.current = { x: e.clientX, y: e.clientY }
+        longPressActiveRef.current = false
+        clearTimeout(longPressTimer.current)
+        longPressTimer.current = setTimeout(() => {
+          longPressActiveRef.current = true
+          setLongPressing(true)
+          if (video) video.playbackRate = 2
+        }, 500)
       }}
-      onDoubleClick={(e) => {
-        if (e.target === e.currentTarget) toggleFullscreen()
+      onMouseUp={() => {
+        clearTimeout(longPressTimer.current)
+        if (longPressActiveRef.current) {
+          longPressActiveRef.current = false
+          setLongPressing(false)
+          if (video) {
+            video.playbackRate = 1
+            setSpeed(1)
+          }
+        }
       }}
     >
       {/* Loading spinner */}
@@ -195,10 +321,45 @@ export default function CustomControls({ videoRef, className = '' }) {
         </div>
       )}
 
+      {/* Double-tap ripple animation - LEFT (backward) */}
+      {doubleTapRipple && doubleTapSide === 'left' && (
+        <div className="absolute top-1/2 left-16 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-30 flex flex-col items-center gap-1 animate-[fadeOut_0.6s_ease-out]">
+          <div className="w-16 h-16 rounded-full border-2 border-white/40 flex items-center justify-center bg-white/10 backdrop-blur-sm">
+            <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12.5 8.5l-4 3.5 4 3.5"/>
+              <path d="M17 5v4h-4"/>
+            </svg>
+          </div>
+          <span className="text-white text-xs font-bold">10 ثوانٍ</span>
+        </div>
+      )}
+
+      {/* Double-tap ripple animation - RIGHT (forward) */}
+      {doubleTapRipple && doubleTapSide === 'right' && (
+        <div className="absolute top-1/2 right-16 -translate-y-1/2 translate-x-1/2 pointer-events-none z-30 flex flex-col items-center gap-1 animate-[fadeOut_0.6s_ease-out]">
+          <div className="w-16 h-16 rounded-full border-2 border-white/40 flex items-center justify-center bg-white/10 backdrop-blur-sm">
+            <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M11.5 8.5l4 3.5-4 3.5"/>
+              <path d="M7 5v4h4"/>
+            </svg>
+          </div>
+          <span className="text-white text-xs font-bold">10 ثوانٍ</span>
+        </div>
+      )}
+
+      {/* Long press speed indicator */}
+      {longPressing && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30">
+          <div className="bg-red-500/80 backdrop-blur-sm text-white text-sm font-bold px-4 py-2 rounded-full animate-pulse">
+            2x ▶▶
+          </div>
+        </div>
+      )}
+
       {/* Big center play button */}
       {showBigPlay && !loading && (
         <button
-          onClick={togglePlay}
+          onClick={(e) => { e.stopPropagation(); togglePlay() }}
           className="absolute inset-0 flex items-center justify-center z-20"
         >
           <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition hover:bg-white/20 hover:scale-105">
@@ -228,24 +389,19 @@ export default function CustomControls({ videoRef, className = '' }) {
             onMouseUp={handleSeekEnd}
             onMouseLeave={handleSeekEnd}
           >
-            {/* Track background */}
             <div className="absolute left-0 right-0 h-1 bg-white/20 rounded-full group-hover/seek:h-1.5 transition-all" />
-            {/* Buffered */}
             <div
               className="absolute left-0 h-1 bg-white/30 rounded-full group-hover/seek:h-1.5 transition-all"
               style={{ width: `${buffered}%` }}
             />
-            {/* Progress */}
             <div
               className="absolute left-0 h-1 bg-red-500 rounded-full group-hover/seek:h-1.5 transition-all"
               style={{ width: `${progress}%` }}
             />
-            {/* Thumb */}
             <div
               className="absolute w-3.5 h-3.5 bg-red-500 rounded-full shadow-lg opacity-0 group-hover/seek:opacity-100 transition -translate-x-1/2"
               style={{ left: `${progress}%` }}
             />
-            {/* Seek preview tooltip */}
             {seekPreview && (
               <div
                 className="absolute bottom-8 -translate-x-1/2 bg-black/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded pointer-events-none"
@@ -258,8 +414,7 @@ export default function CustomControls({ videoRef, className = '' }) {
 
           {/* Bottom row */}
           <div className="flex items-center gap-3">
-            {/* Play/Pause */}
-            <button onClick={togglePlay} className="text-white/90 hover:text-white transition flex-shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); togglePlay() }} className="text-white/90 hover:text-white transition flex-shrink-0">
               {playing ? (
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
@@ -271,8 +426,7 @@ export default function CustomControls({ videoRef, className = '' }) {
               )}
             </button>
 
-            {/* Skip backward 10s */}
-            <button onClick={() => skip(-10)} className="text-white/70 hover:text-white transition flex-shrink-0 relative">
+            <button onClick={(e) => { e.stopPropagation(); skip(-10) }} className="text-white/70 hover:text-white transition flex-shrink-0">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12.5 8.5l-4 3.5 4 3.5"/>
                 <path d="M17 5v4h-4"/>
@@ -280,8 +434,7 @@ export default function CustomControls({ videoRef, className = '' }) {
               </svg>
             </button>
 
-            {/* Skip forward 10s */}
-            <button onClick={() => skip(10)} className="text-white/70 hover:text-white transition flex-shrink-0 relative">
+            <button onClick={(e) => { e.stopPropagation(); skip(10) }} className="text-white/70 hover:text-white transition flex-shrink-0">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M11.5 8.5l4 3.5-4 3.5"/>
                 <path d="M7 5v4h4"/>
@@ -289,20 +442,23 @@ export default function CustomControls({ videoRef, className = '' }) {
               </svg>
             </button>
 
-            {/* Time */}
             <span className="text-white/80 text-xs font-medium tracking-wide whitespace-nowrap select-none">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
 
             <div className="flex-1" />
 
-            {/* Volume */}
+            {/* Speed indicator */}
+            {speed !== 1 && (
+              <span className="text-red-400 text-xs font-bold">{speed}x</span>
+            )}
+
             <div
               className="relative flex items-center gap-2"
               onMouseEnter={() => { setShowVolume(true); clearTimeout(volumeTimer.current) }}
               onMouseLeave={() => { volumeTimer.current = setTimeout(() => setShowVolume(false), 500) }}
             >
-              <button onClick={toggleMute} className="text-white/70 hover:text-white transition">
+              <button onClick={(e) => { e.stopPropagation(); toggleMute() }} className="text-white/70 hover:text-white transition">
                 {muted || volume === 0 ? (
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
@@ -322,7 +478,7 @@ export default function CustomControls({ videoRef, className = '' }) {
                   showVolume ? 'w-20 opacity-100' : 'w-0 opacity-0'
                 }`}
               >
-                <div className="relative w-full h-5 flex items-center cursor-pointer" onClick={handleVolume}>
+                <div className="relative w-full h-5 flex items-center cursor-pointer" onClick={(e) => { e.stopPropagation(); handleVolume(e) }}>
                   <div className="absolute left-0 right-0 h-0.5 bg-white/20 rounded-full" />
                   <div className="absolute left-0 h-0.5 bg-white/70 rounded-full" style={{ width: `${muted ? 0 : volume * 100}%` }} />
                   <div className="absolute w-2.5 h-2.5 bg-white rounded-full shadow -translate-x-1/2" style={{ left: `${muted ? 0 : volume * 100}%` }} />
@@ -330,8 +486,7 @@ export default function CustomControls({ videoRef, className = '' }) {
               </div>
             </div>
 
-            {/* Fullscreen */}
-            <button onClick={toggleFullscreen} className="text-white/70 hover:text-white transition flex-shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); toggleFullscreen() }} className="text-white/70 hover:text-white transition flex-shrink-0">
               {fullscreen ? (
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
@@ -345,6 +500,13 @@ export default function CustomControls({ videoRef, className = '' }) {
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeOut {
+          0% { opacity: 1; transform: translateY(-50%) scale(1); }
+          100% { opacity: 0; transform: translateY(-50%) scale(1.3); }
+        }
+      `}</style>
     </div>
   )
 }
