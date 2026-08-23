@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload } from 'lucide-react'
 import Link from 'next/link'
 
 function sanitize(str) {
@@ -162,6 +162,7 @@ export default function AdminPanel() {
   const [episodeForm, setEpisodeForm] = useState({ episode_number: 1, title: '', embed_url: '', thumbnail: '', duration: 0, display_order: 0, is_active: true })
   const [editingEpisode, setEditingEpisode] = useState(null)
   const [episodeDefaults, setEpisodeDefaults] = useState({ title: '', thumbnail: '', duration: 0 })
+  const [jsonUploading, setJsonUploading] = useState(false)
 
   // Categories
   const [categories, setCategories] = useState([])
@@ -508,6 +509,64 @@ export default function AdminPanel() {
     } else {
       toast({ title: 'تم الحذف' })
       await toggleSeason(expandedSeason.id)
+    }
+  }
+
+  const handleJsonUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !expandedSeason) return
+
+    setJsonUploading(true)
+    try {
+      const text = await file.text()
+      const json = JSON.parse(text)
+
+      const episodes = Array.isArray(json) ? json : json.episodes || json.data || []
+      if (!episodes.length) {
+        throw new Error('الملف فارغ أو صيغة غير صحيحة')
+      }
+
+      const defaults = {
+        thumbnail: episodeDefaults.thumbnail || '',
+        duration: episodeDefaults.duration || 0,
+      }
+
+      const toInsert = episodes.map((ep, i) => {
+        const num = ep.episode_number || ep.number || ep.num || (i + 1)
+        return {
+          season_id: expandedSeason.id,
+          episode_number: num,
+          title: ep.title || ep.name || ep.title_ar || '',
+          embed_url: ep.embed_url || ep.url || ep.link || ep.src || '',
+          thumbnail: ep.thumbnail || ep.image || ep.poster || defaults.thumbnail,
+          duration: ep.duration || defaults.duration,
+          display_order: ep.display_order || ep.order || num,
+          is_active: true,
+          stream_status: 'pending',
+          ...(isSourcePageUrl(ep.embed_url || ep.url || ep.link || ep.src) ? { source_url: ep.embed_url || ep.url || ep.link || ep.src } : {})
+        }
+      }).filter(ep => ep.embed_url)
+
+      if (!toInsert.length) {
+        throw new Error('لا توجد روابط فيديو صحيحة في الملف')
+      }
+
+      const batchSize = 50
+      let inserted = 0
+      for (let i = 0; i < toInsert.length; i += batchSize) {
+        const batch = toInsert.slice(i, i + batchSize)
+        const { error } = await supabase.from('episodes').insert(batch)
+        if (error) throw error
+        inserted += batch.length
+      }
+
+      toast({ title: `تم رفع ${inserted} حلقة بنجاح` })
+      await toggleSeason(expandedSeason.id)
+    } catch (err) {
+      toast({ title: 'خطأ في رفع الملف', description: err.message, variant: 'destructive' })
+    } finally {
+      setJsonUploading(false)
+      e.target.value = ''
     }
   }
 
@@ -994,26 +1053,39 @@ export default function AdminPanel() {
 
                             {/* Episodes */}
                             <div className={`mt-4 space-y-2 ${isOpen ? '' : 'hidden'}`}>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setEditingEpisode(null)
-                                  const nextNum = (expandedSeason?.episodes?.length || 0) + 1
-                                  setEpisodeForm({
-                                    episode_number: nextNum,
-                                    title: '',
-                                    embed_url: '',
-                                    thumbnail: '',
-                                    duration: 0,
-                                    display_order: nextNum,
-                                    is_active: true
-                                  })
-                                  setShowEpisodeForm(!showEpisodeForm)
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700 text-white mb-2"
-                              >
-                                <Plus className="w-4 h-4 ml-2" /> إضافة حلقة
-                              </Button>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingEpisode(null)
+                                    const nextNum = (expandedSeason?.episodes?.length || 0) + 1
+                                    setEpisodeForm({
+                                      episode_number: nextNum,
+                                      title: '',
+                                      embed_url: '',
+                                      thumbnail: '',
+                                      duration: 0,
+                                      display_order: nextNum,
+                                      is_active: true
+                                    })
+                                    setShowEpisodeForm(!showEpisodeForm)
+                                  }}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  <Plus className="w-4 h-4 ml-2" /> إضافة حلقة
+                                </Button>
+                                <label className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium cursor-pointer transition bg-purple-600 hover:bg-purple-700 text-white ${jsonUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                  <Upload className="w-4 h-4" />
+                                  {jsonUploading ? 'جاري الرفع...' : 'رفع JSON'}
+                                  <input
+                                    type="file"
+                                    accept=".json"
+                                    className="hidden"
+                                    onChange={handleJsonUpload}
+                                    disabled={jsonUploading}
+                                  />
+                                </label>
+                              </div>
 
                               {showEpisodeForm && (
                                 <Card className="bg-gray-800 border-gray-700 mb-3">
