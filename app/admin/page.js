@@ -931,27 +931,16 @@ export default function AdminPanel() {
                       </div>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label>رابط الصفحة المصدر (دائم)</Label>
-                        <Input
-                          value={movieForm.source_page_url}
-                          onChange={(e) => setMovieForm({ ...movieForm, source_page_url: e.target.value })}
-                          className="bg-black border-gray-700"
-                          placeholder="https://z.3isk.news/video/..."
-                        />
-                        <p className="text-xs text-gray-500 mt-1">رابط صفحة المصدر فقط - يتم تحديث رابط البث تلقائياً</p>
-                      </div>
-                      <div>
-                        <Label>رابط الفيديو</Label>
-                        <Input
-                          value={movieForm.embed_url}
-                          onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
-                          className="bg-black border-gray-700"
-                          placeholder=".mp4 / .m3u8 / YouTube / iframe embed"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">يدعم: رابط مباشر (.mp4), بث (.m3u8), YouTube, أو كود embed من أي موقع</p>
-                      </div>
+                    <div>
+                      <Label>رابط الفيديو</Label>
+                      <Input
+                        value={movieForm.embed_url}
+                        onChange={(e) => setMovieForm({ ...movieForm, embed_url: e.target.value })}
+                        className="bg-black border-gray-700"
+                        placeholder=".mp4 / .m3u8 / YouTube / iframe embed"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">يدعم: رابط مباشر (.mp4), بث (.m3u8), YouTube, أو كود embed من أي موقع</p>
                     </div>
 
                     <div>
