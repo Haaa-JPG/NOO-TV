@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,38 @@ export default function Home() {
     }, 8000)
     return () => clearInterval(timer)
   }, [heroItems.length])
+
+  const videoRefs = useRef({})
+  const heroTimers = useRef({})
+
+  useEffect(() => {
+    heroItems.forEach((item, i) => {
+      if (item.content_type !== 'video') return
+      const el = videoRefs.current[item.id]
+      if (!el) return
+
+      clearTimeout(heroTimers.current[item.id])
+
+      if (i === heroIndex) {
+        el.currentTime = item.start_time || 0
+        el.play().catch(() => {})
+
+        if (item.end_time > 0 && item.end_time > (item.start_time || 0)) {
+          const duration = item.end_time - (item.start_time || 0)
+          heroTimers.current[item.id] = setTimeout(() => {
+            el.pause()
+            setHeroIndex(prev => (prev + 1) % heroItems.length)
+          }, duration * 1000)
+        }
+      } else {
+        el.pause()
+      }
+    })
+
+    return () => {
+      Object.values(heroTimers.current).forEach(clearTimeout)
+    }
+  }, [heroIndex, heroItems])
 
   const checkUser = async () => {
     const { user } = await getCurrentUser()
@@ -370,28 +402,7 @@ export default function Home() {
                   loop={false}
                   playsInline
                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`}
-                  ref={el => {
-                    if (el) {
-                      if (isActive) {
-                        el.currentTime = item.start_time || 0
-                        el.play().catch(() => {})
-                        let rafId
-                        const check = () => {
-                          if (item.end_time > 0 && el.currentTime >= item.end_time - 0.1) {
-                            el.pause()
-                            setHeroIndex(prev => (prev + 1) % heroItems.length)
-                            return
-                          }
-                          rafId = requestAnimationFrame(check)
-                        }
-                        rafId = requestAnimationFrame(check)
-                        el._cleanup = () => cancelAnimationFrame(rafId)
-                      } else {
-                        el.pause()
-                        if (el._cleanup) el._cleanup()
-                      }
-                    }
-                  }}
+                  ref={el => { if (el) videoRefs.current[item.id] = el }}
                 />
               )
             }
