@@ -54,10 +54,27 @@ function detectType(url) {
 
 const PROXY_HOSTS = ['cdnz.quest', 'cdnwistia', 'wistia.']
 
+const VIDEO_HOSTS_FOR_SW = [
+  'ujeklsj.site',
+  'vid1.ujeklsj.site',
+  'q-drama.com',
+]
+
+function isVideoHostForSW(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return VIDEO_HOSTS_FOR_SW.some(host => hostname === host || hostname.endsWith('.' + host))
+  } catch {
+    return false
+  }
+}
+
 function shouldProxy(url) {
   if (!url) return false
   if (/\.m3u8(\?.*)?$/i.test(url)) return true
-  if (/\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)) return true
+  if (/\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(url)) {
+    return !isVideoHostForSW(url)
+  }
   for (const h of PROXY_HOSTS) {
     if (url.includes(h)) return true
   }
@@ -387,7 +404,8 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   }
 
   if (result.type === 'video') {
-    const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
+    const isDirectVideoHost = isVideoHostForSW(result.embed)
+    const src = isDirectVideoHost ? result.embed : (shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed)
     return (
       <P2PVideoPlayer 
         src={src} 
