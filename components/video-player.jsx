@@ -396,12 +396,51 @@ function DirectVideo({ src, title, initialTime = 0, onProgress }) {
 
 export default function VideoPlayer({ url, activeStreamUrl, title = '', contentId, contentType, initialTime = 0, onProgress }) {
   const [extractedUrl, setExtractedUrl] = useState(null)
+  const [introUrl, setIntroUrl] = useState(null)
+  const [introChecked, setIntroChecked] = useState(false)
+  const [introEnded, setIntroEnded] = useState(false)
+  const introRef = useRef(null)
+
+  useEffect(() => {
+    fetch('/api/intro')
+      .then(r => r.json())
+      .then(d => { setIntroUrl(d.url || null); setIntroChecked(true) })
+      .catch(() => setIntroChecked(true))
+  }, [])
 
   const handleExtracted = useCallback((m3u8) => {
     setExtractedUrl(m3u8)
   }, [])
 
   const resolvedUrl = activeStreamUrl || url
+
+  if (!introChecked) {
+    return (
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 border-4 border-red-600/20 rounded-full" />
+          <div className="absolute inset-0 border-4 border-transparent border-t-red-600 rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
+  const showIntro = introUrl && !introEnded
+
+  if (showIntro) {
+    return (
+      <video
+        ref={introRef}
+        src={introUrl}
+        autoPlay
+        playsInline
+        controls={false}
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        onEnded={() => setIntroEnded(true)}
+        onClick={() => setIntroEnded(true)}
+      />
+    )
+  }
 
   if (!resolvedUrl) {
     return (

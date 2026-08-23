@@ -185,6 +185,10 @@ export default function AdminPanel() {
     totalEpisodes: 0,
   })
 
+  // Display settings
+  const [introVideoUrl, setIntroVideoUrl] = useState('')
+  const [savingIntro, setSavingIntro] = useState(false)
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -269,6 +273,31 @@ export default function AdminPanel() {
         (moviesData?.reduce((sum, m) => sum + (m.views || 0), 0) || 0) +
         (seriesData?.reduce((sum, s) => sum + (s.views || 0), 0) || 0),
     })
+
+    // Load display settings
+    const { data: settingsData } = await supabase
+      .from('site_settings')
+      .select('setting_value')
+      .eq('setting_key', 'intro_video_url')
+      .maybeSingle()
+    if (settingsData?.setting_value) {
+      setIntroVideoUrl(settingsData.setting_value)
+    }
+  }
+
+  const saveIntroVideo = async () => {
+    setSavingIntro(true)
+    try {
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({ setting_key: 'intro_video_url', setting_value: introVideoUrl, value_type: 'string' }, { onConflict: 'setting_key' })
+      if (error) throw error
+      toast({ title: 'تم حفظ فيديو المقدمة' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    } finally {
+      setSavingIntro(false)
+    }
   }
 
   // ============ MOVIES ============
@@ -717,6 +746,9 @@ export default function AdminPanel() {
             </TabsTrigger>
             <TabsTrigger value="schedule" className="data-[state=active]:bg-red-600">
               <Calendar className="w-4 h-4 ml-2" /> الجدول الزمني
+            </TabsTrigger>
+            <TabsTrigger value="display" className="data-[state=active]:bg-red-600">
+              <Eye className="w-4 h-4 ml-2" /> إعدادات العرض
             </TabsTrigger>
           </TabsList>
 
@@ -1740,6 +1772,50 @@ export default function AdminPanel() {
                 </div>
               )
             })()}
+          </TabsContent>
+
+          {/* ================= DISPLAY SETTINGS ================= */}
+          <TabsContent value="display">
+            <Card className="bg-gray-900 border-gray-800 max-w-2xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-red-600" />
+                  إعدادات العرض
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <Label className="text-sm font-bold mb-2 block">فيديو المقدمة (Intro)</Label>
+                  <p className="text-xs text-gray-400 mb-3">يُعرض هذا الفيديو قبل بدء أي فيلم أو حلقة مسلسل</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={introVideoUrl}
+                      onChange={(e) => setIntroVideoUrl(e.target.value)}
+                      className="bg-black border-gray-700 flex-1"
+                      placeholder="https://example.com/intro.mp4"
+                    />
+                    <Button
+                      onClick={saveIntroVideo}
+                      disabled={savingIntro}
+                      className="bg-red-600 hover:bg-red-700 shrink-0"
+                    >
+                      {savingIntro ? 'جاري الحفظ...' : 'حفظ'}
+                    </Button>
+                  </div>
+                  {introVideoUrl && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-1">معاينة:</p>
+                      <video
+                        src={introVideoUrl}
+                        controls
+                        className="w-full max-w-md rounded-lg border border-gray-700"
+                        style={{ maxHeight: 200 }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
