@@ -2,6 +2,7 @@ import { Tajawal } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import PWAInstall from '@/components/pwa-install'
+import BanModal from '@/components/ban-modal'
 import Footer from '@/components/footer'
 
 const tajawal = Tajawal({ 
@@ -50,6 +51,7 @@ export default function RootLayout({ children }) {
       <body className={`${tajawal.variable} font-sans antialiased`}>
         {children}
         <Footer />
+        <BanModal />
         <Toaster />
         <PWAInstall />
         <script

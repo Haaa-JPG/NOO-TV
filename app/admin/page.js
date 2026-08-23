@@ -191,6 +191,9 @@ export default function AdminPanel() {
 
   // Users
   const [users, setUsers] = useState([])
+  const [showUserForm, setShowUserForm] = useState(false)
+  const [newUserForm, setNewUserForm] = useState({ email: '', password: '', displayName: '' })
+  const [creatingUser, setCreatingUser] = useState(false)
 
   // Complaints
   const [complaints, setComplaints] = useState([])
@@ -772,6 +775,47 @@ export default function AdminPanel() {
     if (!error) {
       toast({ title: userRecord.is_active ? 'تم حظر المستخدم' : 'تم إلغاء الحظر' })
       loadData()
+    }
+  }
+
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المستخدم نهائياً من كل شيء؟')) return
+    try {
+      const res = await fetch('/api/admin-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', userId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: 'تم حذف المستخدم نهائياً' })
+      loadData()
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault()
+    setCreatingUser(true)
+    try {
+      if (!newUserForm.email || !newUserForm.password) throw new Error('البريد وكلمة المرور مطلوبان')
+      if (newUserForm.password.length < 6) throw new Error('كلمة المرور 6 أحرف على الأقل')
+      const res = await fetch('/api/admin-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', email: newUserForm.email, password: newUserForm.password, displayName: newUserForm.displayName }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: 'تم إنشاء الحساب بنجاح' })
+      setShowUserForm(false)
+      setNewUserForm({ email: '', password: '', displayName: '' })
+      loadData()
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    } finally {
+      setCreatingUser(false)
     }
   }
 
@@ -1699,6 +1743,65 @@ export default function AdminPanel() {
 
           {/* ================= USERS ================= */}
           <TabsContent value="users">
+            <div className="mb-4">
+              <Button
+                onClick={() => { setShowUserForm(!showUserForm); setNewUserForm({ email: '', password: '', displayName: '' }) }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Plus className="w-4 h-4 ml-2" /> إضافة مستخدم جديد
+              </Button>
+            </div>
+
+            {showUserForm && (
+              <Card className="bg-gray-900 border-gray-800 mb-6">
+                <CardHeader>
+                  <CardTitle>إضافة مستخدم جديد</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateUser} className="space-y-4">
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>البريد الإلكتروني</Label>
+                        <Input
+                          type="email"
+                          value={newUserForm.email}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                          className="bg-black border-gray-700"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>كلمة المرور</Label>
+                        <Input
+                          type="password"
+                          value={newUserForm.password}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                          className="bg-black border-gray-700"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>الاسم (اختياري)</Label>
+                        <Input
+                          value={newUserForm.displayName}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, displayName: e.target.value })}
+                          className="bg-black border-gray-700"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={creatingUser} className="bg-red-600 hover:bg-red-700">
+                        {creatingUser ? 'جاري الإنشاء...' : 'إنشاء الحساب'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setShowUserForm(false)}>
+                        إلغاء
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="space-y-2">
               {users.map((u) => (
                 <Card key={u.id} className="bg-gray-900 border-gray-800">
@@ -1730,6 +1833,15 @@ export default function AdminPanel() {
                         className={u.is_active ? '' : 'text-green-500'}
                       >
                         <Ban className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteUser(u.id)}
+                        title="حذف نهائياً"
+                        className="text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </CardContent>
