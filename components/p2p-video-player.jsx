@@ -103,15 +103,28 @@ function P2PVideoPlayer({
   // Seek to initial time
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !initialTimeRef.current) return
-    
-    const seek = () => {
-      if (video.duration && video.duration > 0) {
+    if (!video) return
+
+    const doSeek = () => {
+      const t = initialTimeRef.current
+      if (t && video.duration && video.duration > 0 && video.currentTime < t - 2) {
+        video.currentTime = t
+      }
+    }
+
+    video.addEventListener('loadedmetadata', doSeek)
+
+    const onTimeUpdate = () => {
+      if (initialTimeRef.current && video.duration && video.currentTime < 1 && initialTimeRef.current > 1) {
         video.currentTime = initialTimeRef.current
       }
     }
-    video.addEventListener('loadedmetadata', seek)
-    return () => video.removeEventListener('loadedmetadata', seek)
+    video.addEventListener('timeupdate', onTimeUpdate)
+
+    return () => {
+      video.removeEventListener('loadedmetadata', doSeek)
+      video.removeEventListener('timeupdate', onTimeUpdate)
+    }
   }, [])
 
   // Progress tracking

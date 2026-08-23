@@ -113,6 +113,9 @@ function toEmbedUrl(url) {
 function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
+  const initialTimeRef = useRef(initialTime)
+
+  initialTimeRef.current = initialTime
 
   useEffect(() => {
     const video = videoRef.current
@@ -144,15 +147,29 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !initialTime) return
-    const seek = () => {
-      if (video.duration && video.duration > 0) {
-        video.currentTime = initialTime
+    if (!video) return
+
+    const doSeek = () => {
+      const t = initialTimeRef.current
+      if (t && video.duration && video.duration > 0 && video.currentTime < t - 2) {
+        video.currentTime = t
       }
     }
-    video.addEventListener('loadedmetadata', seek)
-    return () => video.removeEventListener('loadedmetadata', seek)
-  }, [initialTime])
+
+    video.addEventListener('loadedmetadata', doSeek)
+
+    const onTimeUpdate = () => {
+      if (initialTimeRef.current && video.duration && video.currentTime < 1 && initialTimeRef.current > 1) {
+        video.currentTime = initialTimeRef.current
+      }
+    }
+    video.addEventListener('timeupdate', onTimeUpdate)
+
+    return () => {
+      video.removeEventListener('loadedmetadata', doSeek)
+      video.removeEventListener('timeupdate', onTimeUpdate)
+    }
+  }, [])
 
   useEffect(() => {
     const video = videoRef.current
@@ -312,18 +329,35 @@ function SourceExtracting({ url, onExtracted, onError }) {
 
 function DirectVideo({ src, title, initialTime = 0, onProgress }) {
   const videoRef = useRef(null)
+  const initialTimeRef = useRef(initialTime)
+
+  initialTimeRef.current = initialTime
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !initialTime) return
-    const seek = () => {
-      if (video.duration && video.duration > 0) {
-        video.currentTime = initialTime
+    if (!video) return
+
+    const doSeek = () => {
+      const t = initialTimeRef.current
+      if (t && video.duration && video.duration > 0 && video.currentTime < t - 2) {
+        video.currentTime = t
       }
     }
-    video.addEventListener('loadedmetadata', seek)
-    return () => video.removeEventListener('loadedmetadata', seek)
-  }, [initialTime])
+
+    video.addEventListener('loadedmetadata', doSeek)
+
+    const onTimeUpdate = () => {
+      if (initialTimeRef.current && video.duration && video.currentTime < 1 && initialTimeRef.current > 1) {
+        video.currentTime = initialTimeRef.current
+      }
+    }
+    video.addEventListener('timeupdate', onTimeUpdate)
+
+    return () => {
+      video.removeEventListener('loadedmetadata', doSeek)
+      video.removeEventListener('timeupdate', onTimeUpdate)
+    }
+  }, [])
 
   useEffect(() => {
     const video = videoRef.current
