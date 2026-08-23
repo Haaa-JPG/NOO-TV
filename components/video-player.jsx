@@ -404,6 +404,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const [introUrl, setIntroUrl] = useState(null)
   const [introChecked, setIntroChecked] = useState(false)
   const [introEnded, setIntroEnded] = useState(false)
+  const [watermark, setWatermark] = useState(null)
   const introRef = useRef(null)
   const prevUrlRef = useRef(null)
 
@@ -420,11 +421,20 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
     import('@/lib/supabase').then(({ supabase }) => {
       supabase
         .from('site_settings')
-        .select('setting_value')
-        .eq('setting_key', 'intro_video_url')
-        .maybeSingle()
+        .select('setting_key, setting_value')
+        .in('setting_key', ['intro_video_url', 'watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size'])
         .then(({ data }) => {
-          setIntroUrl(data?.setting_value || null)
+          if (data) {
+            const wm = {}
+            data.forEach(row => {
+              if (row.setting_key === 'intro_video_url') setIntroUrl(row.setting_value || null)
+              if (row.setting_key === 'watermark_url' && row.setting_value) wm.url = row.setting_value
+              if (row.setting_key === 'watermark_position') wm.position = row.setting_value || 'top-right'
+              if (row.setting_key === 'watermark_opacity') wm.opacity = row.setting_value || '0.7'
+              if (row.setting_key === 'watermark_size') wm.size = row.setting_value || '80'
+            })
+            if (wm.url) setWatermark(wm)
+          }
           setIntroChecked(true)
         })
         .catch(() => setIntroChecked(true))
@@ -436,6 +446,20 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   }, [])
 
   const resolvedUrl = activeStreamUrl || url
+
+  const watermarkOverlay = watermark?.url ? (
+    <img
+      src={watermark.url}
+      alt=""
+      className="pointer-events-none absolute z-[15]"
+      style={{
+        width: `${watermark.size || 80}px`,
+        opacity: watermark.opacity || 0.7,
+        ...(watermark.position?.includes('top') ? { top: 12 } : { bottom: 12 }),
+        ...(watermark.position?.includes('left') ? { left: 12 } : watermark.position?.includes('right') ? { right: 12 } : { left: '50%', transform: 'translateX(-50%)' }),
+      }}
+    />
+  ) : null
 
   if (!introChecked) {
     return (
@@ -452,16 +476,19 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (showIntro) {
     return (
-      <video
-        ref={introRef}
-        key={currentUrl}
-        src={introUrl}
-        autoPlay
-        playsInline
-        controls={false}
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        onEnded={() => setIntroEnded(true)}
-      />
+      <div className="absolute inset-0 w-full h-full">
+        <video
+          ref={introRef}
+          key={currentUrl}
+          src={introUrl}
+          autoPlay
+          playsInline
+          controls={false}
+          className="absolute inset-0 w-full h-full object-contain bg-black"
+          onEnded={() => setIntroEnded(true)}
+        />
+        {watermarkOverlay}
+      </div>
     )
   }
 
@@ -496,31 +523,42 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (result.type === 'hls') {
     const src = shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed
-    return <HlsVideo url={src} title={title} initialTime={initialTime} onProgress={onProgress} />
+    return (
+      <div className="absolute inset-0 w-full h-full">
+        <HlsVideo url={src} title={title} initialTime={initialTime} onProgress={onProgress} />
+        {watermarkOverlay}
+      </div>
+    )
   }
 
   if (result.type === 'video') {
     const isDirectVideoHost = isVideoHostForSW(result.embed)
     const src = isDirectVideoHost ? result.embed : (shouldProxy(result.embed) ? proxyUrl(result.embed, contentId, contentType) : result.embed)
     return (
-      <P2PVideoPlayer 
-        src={src} 
-        title={title} 
-        initialTime={initialTime} 
-        onProgress={onProgress}
-        onError={() => {}}
-      />
+      <div className="absolute inset-0 w-full h-full">
+        <P2PVideoPlayer
+          src={src}
+          title={title}
+          initialTime={initialTime}
+          onProgress={onProgress}
+          onError={() => {}}
+        />
+        {watermarkOverlay}
+      </div>
     )
   }
 
   return (
-    <iframe
-      src={result.embed}
-      className="absolute inset-0 w-full h-full bg-black"
-      title={title}
-      allowFullScreen
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
+    <div className="absolute inset-0 w-full h-full">
+      <iframe
+        src={result.embed}
+        className="absolute inset-0 w-full h-full bg-black"
+        title={title}
+        allowFullScreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+      {watermarkOverlay}
+    </div>
   )
 }

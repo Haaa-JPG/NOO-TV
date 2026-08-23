@@ -188,6 +188,12 @@ export default function AdminPanel() {
   // Display settings
   const [introVideoUrl, setIntroVideoUrl] = useState('')
   const [savingIntro, setSavingIntro] = useState(false)
+  const [watermarkUrl, setWatermarkUrl] = useState('')
+  const [watermarkPosition, setWatermarkPosition] = useState('top-right')
+  const [watermarkOpacity, setWatermarkOpacity] = useState('0.7')
+  const [watermarkSize, setWatermarkSize] = useState('80')
+  const [savingWatermark, setSavingWatermark] = useState(false)
+  const [uploadingWatermark, setUploadingWatermark] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -283,6 +289,19 @@ export default function AdminPanel() {
     if (settingsData?.setting_value) {
       setIntroVideoUrl(settingsData.setting_value)
     }
+
+    const { data: wmData } = await supabase
+      .from('site_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size'])
+    if (wmData) {
+      wmData.forEach(row => {
+        if (row.setting_key === 'watermark_url') setWatermarkUrl(row.setting_value || '')
+        if (row.setting_key === 'watermark_position') setWatermarkPosition(row.setting_value || 'top-right')
+        if (row.setting_key === 'watermark_opacity') setWatermarkOpacity(row.setting_value || '0.7')
+        if (row.setting_key === 'watermark_size') setWatermarkSize(row.setting_value || '80')
+      })
+    }
   }
 
   const saveIntroVideo = async () => {
@@ -297,6 +316,66 @@ export default function AdminPanel() {
       toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     } finally {
       setSavingIntro(false)
+    }
+  }
+
+  const handleWatermarkUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'خطأ', description: 'يرجى اختيار صورة', variant: 'destructive' })
+      return
+    }
+    setUploadingWatermark(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `watermark/watermark.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('public')
+        .upload(path, file, { upsert: true, contentType: file.type })
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('public').getPublicUrl(path)
+      const publicUrl = urlData.publicUrl + '?t=' + Date.now()
+      setWatermarkUrl(publicUrl)
+      toast({ title: 'تم رفع الشعار' })
+    } catch (err) {
+      toast({ title: 'خطأ بالرفع', description: err.message, variant: 'destructive' })
+    } finally {
+      setUploadingWatermark(false)
+    }
+  }
+
+  const saveWatermark = async () => {
+    setSavingWatermark(true)
+    try {
+      const settings = [
+        { setting_key: 'watermark_url', setting_value: watermarkUrl, value_type: 'string' },
+        { setting_key: 'watermark_position', setting_value: watermarkPosition, value_type: 'string' },
+        { setting_key: 'watermark_opacity', setting_value: watermarkOpacity, value_type: 'string' },
+        { setting_key: 'watermark_size', setting_value: watermarkSize, value_type: 'string' },
+      ]
+      const { error } = await supabase.from('site_settings').upsert(settings, { onConflict: 'setting_key' })
+      if (error) throw error
+      toast({ title: 'تم حفظ إعدادات الشعار' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    } finally {
+      setSavingWatermark(false)
+    }
+  }
+
+  const deleteWatermark = async () => {
+    try {
+      const keys = ['watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size']
+      const { error } = await supabase.from('site_settings').delete().in('setting_key', keys)
+      if (error) throw error
+      setWatermarkUrl('')
+      setWatermarkPosition('top-right')
+      setWatermarkOpacity('0.7')
+      setWatermarkSize('80')
+      toast({ title: 'تم حذف الشعار' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -1813,6 +1892,129 @@ export default function AdminPanel() {
                       />
                     </div>
                   )}
+                </div>
+
+                <div className="border-t border-gray-800 pt-6">
+                  <Label className="text-sm font-bold mb-2 block">شعار الفيديو (Watermark)</Label>
+                  <p className="text-xs text-gray-400 mb-3">صورة تظهر فوق جميع مقاطع الفيديو</p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleWatermarkUpload}
+                        className="hidden"
+                        id="watermark-upload"
+                      />
+                      <div className="flex gap-2">
+                        <label
+                          htmlFor="watermark-upload"
+                          className="cursor-pointer bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition"
+                        >
+                          {uploadingWatermark ? (
+                            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> جاري الرفع...</>
+                          ) : (
+                            <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> اختر صورة</>
+                          )}
+                        </label>
+                        {watermarkUrl && (
+                          <button
+                            onClick={deleteWatermark}
+                            className="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/30 rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            حذف الشعار
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {watermarkUrl && (
+                      <>
+                        <div>
+                          <Label className="text-xs text-gray-400 mb-1.5 block">مكان الشعار</Label>
+                          <div className="grid grid-cols-3 gap-2 max-w-[240px]">
+                            {[
+                              { val: 'top-left', label: 'أعلى يسار' },
+                              { val: 'top-center', label: 'أعلى وسط' },
+                              { val: 'top-right', label: 'أعلى يمين' },
+                              { val: 'bottom-left', label: 'أسفل يسار' },
+                              { val: 'bottom-center', label: 'أسفل وسط' },
+                              { val: 'bottom-right', label: 'أسفل يمين' },
+                            ].map(p => (
+                              <button
+                                key={p.val}
+                                onClick={() => setWatermarkPosition(p.val)}
+                                className={`text-[11px] py-1.5 px-2 rounded-lg border transition ${
+                                  watermarkPosition === p.val
+                                    ? 'bg-red-600 border-red-500 text-white'
+                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                          <div className="flex-1">
+                            <Label className="text-xs text-gray-400 mb-1 block">الحجم: {watermarkSize}px</Label>
+                            <input
+                              type="range"
+                              min="30"
+                              max="200"
+                              value={watermarkSize}
+                              onChange={(e) => setWatermarkSize(e.target.value)}
+                              className="w-full accent-red-600"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <Label className="text-xs text-gray-400 mb-1 block">الشفافية: {Math.round(watermarkOpacity * 100)}%</Label>
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="1"
+                              step="0.05"
+                              value={watermarkOpacity}
+                              onChange={(e) => setWatermarkOpacity(e.target.value)}
+                              className="w-full accent-red-600"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">معاينة الموقع:</p>
+                          <div className="relative bg-gray-800 rounded-lg border border-gray-700 w-full max-w-md" style={{ aspectRatio: '16/9' }}>
+                            <div
+                              className="absolute"
+                              style={{
+                                ...(watermarkPosition.includes('top') ? { top: 8 } : { bottom: 8 }),
+                                ...(watermarkPosition.includes('left') ? { left: 8 } : watermarkPosition.includes('right') ? { right: 8 } : { left: '50%', transform: 'translateX(-50%)' }),
+                              }}
+                            >
+                              <img
+                                src={watermarkUrl}
+                                alt="watermark"
+                                style={{ width: `${Math.min(watermarkSize, 100)}px`, opacity: watermarkOpacity }}
+                                className="pointer-events-none"
+                              />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-xs">معاينة الفيديو</div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <Button
+                      onClick={saveWatermark}
+                      disabled={savingWatermark}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {savingWatermark ? 'جاري الحفظ...' : 'حفظ إعدادات الشعار'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
