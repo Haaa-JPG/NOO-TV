@@ -402,10 +402,18 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const introRef = useRef(null)
 
   useEffect(() => {
-    fetch('/api/intro')
-      .then(r => r.json())
-      .then(d => { setIntroUrl(d.url || null); setIntroChecked(true) })
-      .catch(() => setIntroChecked(true))
+    import('@/lib/supabase').then(({ supabase }) => {
+      supabase
+        .from('site_settings')
+        .select('setting_value')
+        .eq('setting_key', 'intro_video_url')
+        .maybeSingle()
+        .then(({ data }) => {
+          setIntroUrl(data?.setting_value || null)
+          setIntroChecked(true)
+        })
+        .catch(() => setIntroChecked(true))
+    })
   }, [])
 
   const handleExtracted = useCallback((m3u8) => {
@@ -429,16 +437,24 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
 
   if (showIntro) {
     return (
-      <video
-        ref={introRef}
-        src={introUrl}
-        autoPlay
-        playsInline
-        controls={false}
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        onEnded={() => setIntroEnded(true)}
-        onClick={() => setIntroEnded(true)}
-      />
+      <div className="absolute inset-0 w-full h-full bg-black">
+        <video
+          ref={introRef}
+          src={introUrl}
+          autoPlay
+          playsInline
+          controls={false}
+          className="absolute inset-0 w-full h-full object-contain"
+          onEnded={() => setIntroEnded(true)}
+          onClick={() => setIntroEnded(true)}
+        />
+        <button
+          onClick={() => setIntroEnded(true)}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 hover:bg-black/80 text-white text-sm px-4 py-2 rounded-full z-10 transition border border-gray-600"
+        >
+          تخطي ▶
+        </button>
+      </div>
     )
   }
 
