@@ -194,6 +194,12 @@ export default function AdminPanel() {
   const [watermarkSize, setWatermarkSize] = useState('80')
   const [savingWatermark, setSavingWatermark] = useState(false)
   const [uploadingWatermark, setUploadingWatermark] = useState(false)
+  const [overlayRegions, setOverlayRegions] = useState([])
+  const [overlayPreviewUrl, setOverlayPreviewUrl] = useState('')
+  const [savingOverlay, setSavingOverlay] = useState(false)
+  const [drawingOverlay, setDrawingOverlay] = useState(false)
+  const [drawStart, setDrawStart] = useState(null)
+  const [drawCurrent, setDrawCurrent] = useState(null)
 
   useEffect(() => {
     checkAuth()
@@ -293,13 +299,17 @@ export default function AdminPanel() {
     const { data: wmData } = await supabase
       .from('site_settings')
       .select('setting_key, setting_value')
-      .in('setting_key', ['watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size'])
+      .in('setting_key', ['watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size', 'overlay_regions', 'overlay_preview_url'])
     if (wmData) {
       wmData.forEach(row => {
         if (row.setting_key === 'watermark_url') setWatermarkUrl(row.setting_value || '')
         if (row.setting_key === 'watermark_position') setWatermarkPosition(row.setting_value || 'top-right')
         if (row.setting_key === 'watermark_opacity') setWatermarkOpacity(row.setting_value || '0.7')
         if (row.setting_key === 'watermark_size') setWatermarkSize(row.setting_value || '80')
+        if (row.setting_key === 'overlay_regions') {
+          try { setOverlayRegions(JSON.parse(row.setting_value || '[]')) } catch { setOverlayRegions([]) }
+        }
+        if (row.setting_key === 'overlay_preview_url') setOverlayPreviewUrl(row.setting_value || '')
       })
     }
   }
@@ -374,6 +384,35 @@ export default function AdminPanel() {
       setWatermarkOpacity('0.7')
       setWatermarkSize('80')
       toast({ title: 'تم حذف الشعار' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const saveOverlayRegions = async () => {
+    setSavingOverlay(true)
+    try {
+      const settings = [
+        { setting_key: 'overlay_regions', setting_value: JSON.stringify(overlayRegions), value_type: 'string' },
+        { setting_key: 'overlay_preview_url', setting_value: overlayPreviewUrl, value_type: 'string' },
+      ]
+      const { error } = await supabase.from('site_settings').upsert(settings, { onConflict: 'setting_key' })
+      if (error) throw error
+      toast({ title: 'تم حفظ مناطق الإزالة' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    } finally {
+      setSavingOverlay(false)
+    }
+  }
+
+  const deleteOverlayRegions = async () => {
+    try {
+      const { error } = await supabase.from('site_settings').delete().in('setting_key', ['overlay_regions', 'overlay_preview_url'])
+      if (error) throw error
+      setOverlayRegions([])
+      setOverlayPreviewUrl('')
+      toast({ title: 'تم حذف مناطق الإزالة' })
     } catch (err) {
       toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     }
@@ -2099,6 +2138,165 @@ export default function AdminPanel() {
                     >
                       {savingWatermark ? 'جاري الحفظ...' : 'حفظ إعدادات الشعار'}
                     </Button>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-800 pt-6">
+                  <Label className="text-sm font-bold mb-2 block">إخفاء شعارات قديمة من الفيديو</Label>
+                  <p className="text-xs text-gray-400 mb-3">حدد المناطق التي تحتوي على شعارات قديمة وسيتم إخفاؤها بировка سوداء</p>
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs text-gray-400 mb-1.5 block">صورة معاينة (رابط فيديو أو صورة من الفيديو)</Label>
+                      <Input
+                        value={overlayPreviewUrl}
+                        onChange={(e) => setOverlayPreviewUrl(e.target.value)}
+                        className="bg-black border-gray-700 text-sm"
+                        placeholder="https://example.com/video.mp4 أو رابط صورة"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">ضع رابط الفيديو أو صورة لمعاينة أماكن الشعارات</p>
+                    </div>
+
+                    {overlayPreviewUrl && (
+                      <div className="relative">
+                        <div
+                          className="relative bg-gray-800 rounded-lg border border-gray-700 w-full max-w-lg overflow-hidden select-none"
+                          style={{ aspectRatio: '16/9' }}
+                          onMouseDown={(e) => {
+                            if (!drawingOverlay) return
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1)
+                            const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1)
+                            setDrawStart({ x: parseFloat(x), y: parseFloat(y) })
+                            setDrawCurrent({ x: parseFloat(x), y: parseFloat(y) })
+                          }}
+                          onMouseMove={(e) => {
+                            if (!drawStart) return
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1)
+                            const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1)
+                            setDrawCurrent({ x: parseFloat(x), y: parseFloat(y) })
+                          }}
+                          onMouseUp={() => {
+                            if (!drawStart || !drawCurrent) return
+                            const x = Math.min(drawStart.x, drawCurrent.x)
+                            const y = Math.min(drawStart.y, drawCurrent.y)
+                            const w = Math.abs(drawCurrent.x - drawStart.x)
+                            const h = Math.abs(drawCurrent.y - drawStart.y)
+                            if (w > 2 && h > 2) {
+                              setOverlayRegions(prev => [...prev, { x, y, w, h, id: Date.now() }])
+                            }
+                            setDrawStart(null)
+                            setDrawCurrent(null)
+                          }}
+                        >
+                          {overlayPreviewUrl.match(/\.(mp4|webm|ogg)/i) ? (
+                            <video
+                              src={overlayPreviewUrl}
+                              className="absolute inset-0 w-full h-full object-contain"
+                              controls
+                              preload="metadata"
+                            />
+                          ) : (
+                            <img
+                              src={overlayPreviewUrl}
+                              className="absolute inset-0 w-full h-full object-contain"
+                              alt="preview"
+                            />
+                          )}
+
+                          {/* Saved regions */}
+                          {overlayRegions.map((r, i) => (
+                            <div
+                              key={r.id || i}
+                              className="absolute bg-black border border-red-500/50 group cursor-pointer hover:border-red-400"
+                              style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOverlayRegions(prev => prev.filter((_, idx) => idx !== i))
+                              }}
+                            >
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                              </div>
+                              <div className="absolute -top-5 left-0 bg-red-600 text-white text-[9px] px-1 rounded opacity-0 group-hover:opacity-100 transition">
+                                اضغط للحذف
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Drawing preview */}
+                          {drawStart && drawCurrent && (
+                            <div
+                              className="absolute bg-red-500/20 border-2 border-dashed border-red-400 pointer-events-none"
+                              style={{
+                                left: `${Math.min(drawStart.x, drawCurrent.x)}%`,
+                                top: `${Math.min(drawStart.y, drawCurrent.y)}%`,
+                                width: `${Math.abs(drawCurrent.x - drawStart.x)}%`,
+                                height: `${Math.abs(drawCurrent.y - drawStart.y)}%`,
+                              }}
+                            />
+                          )}
+
+                          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                            <span className="text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5 rounded">
+                              {drawingOverlay ? 'ارسم مربع على المنطقة' : 'معاينة'}
+                            </span>
+                            <span className="text-[10px] text-gray-400 bg-black/60 px-1.5 py-0.5 rounded">
+                              {overlayRegions.length} منطقة
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            onClick={() => setDrawingOverlay(!drawingOverlay)}
+                            className={drawingOverlay ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'}
+                          >
+                            {drawingOverlay ? (
+                              <><svg className="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12"/></svg> إلغاء التحديد</>
+                            ) : (
+                              <><svg className="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> رسم منطقة</>
+                            )}
+                          </Button>
+                          {overlayRegions.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setOverlayRegions([])}
+                              className="border-gray-700 text-gray-400"
+                            >
+                              مسح الكل
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            onClick={saveOverlayRegions}
+                            disabled={savingOverlay}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {savingOverlay ? 'جاري الحفظ...' : 'حفظ'}
+                          </Button>
+                          {overlayRegions.length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={deleteOverlayRegions}
+                              className="border-red-600/30 text-red-400 hover:bg-red-600/20"
+                            >
+                              حذف الكل
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {!overlayPreviewUrl && (
+                      <p className="text-xs text-gray-500 bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                        اكتب رابط فيديو في الحقل أعلاه ثم اضغط "رسم منطقة" وارسم مربعات على الشعارات التي تريد إخفاءها
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

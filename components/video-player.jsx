@@ -405,6 +405,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
   const [introChecked, setIntroChecked] = useState(false)
   const [introEnded, setIntroEnded] = useState(false)
   const [watermark, setWatermark] = useState(null)
+  const [overlayRegions, setOverlayRegions] = useState([])
   const introRef = useRef(null)
   const prevUrlRef = useRef(null)
 
@@ -422,7 +423,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
       supabase
         .from('site_settings')
         .select('setting_key, setting_value')
-        .in('setting_key', ['intro_video_url', 'watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size'])
+        .in('setting_key', ['intro_video_url', 'watermark_url', 'watermark_position', 'watermark_opacity', 'watermark_size', 'overlay_regions'])
         .then(({ data }) => {
           if (data) {
             const wm = {}
@@ -432,6 +433,9 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
               if (row.setting_key === 'watermark_position') wm.position = row.setting_value || 'top-right'
               if (row.setting_key === 'watermark_opacity') wm.opacity = row.setting_value || '0.7'
               if (row.setting_key === 'watermark_size') wm.size = row.setting_value || '80'
+              if (row.setting_key === 'overlay_regions') {
+                try { setOverlayRegions(JSON.parse(row.setting_value || '[]')) } catch {}
+              }
             })
             if (wm.url) setWatermark(wm)
           }
@@ -461,6 +465,18 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
     />
   ) : null
 
+  const overlayBlocks = overlayRegions.length > 0 ? (
+    <>
+      {overlayRegions.map((r, i) => (
+        <div
+          key={r.id || i}
+          className="absolute bg-black pointer-events-none z-[14]"
+          style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }}
+        />
+      ))}
+    </>
+  ) : null
+
   if (!introChecked) {
     return (
       <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-900">
@@ -488,6 +504,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
           onEnded={() => setIntroEnded(true)}
         />
         {watermarkOverlay}
+        {overlayBlocks}
       </div>
     )
   }
@@ -527,6 +544,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
       <div className="absolute inset-0 w-full h-full">
         <HlsVideo url={src} title={title} initialTime={initialTime} onProgress={onProgress} />
         {watermarkOverlay}
+        {overlayBlocks}
       </div>
     )
   }
@@ -544,6 +562,7 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
           onError={() => {}}
         />
         {watermarkOverlay}
+        {overlayBlocks}
       </div>
     )
   }
