@@ -375,14 +375,17 @@ export default function Home() {
                       if (isActive) {
                         el.currentTime = item.start_time || 0
                         el.play().catch(() => {})
-                        const onTimeUpdate = () => {
-                          if (item.end_time > 0 && el.currentTime >= item.end_time) {
+                        let rafId
+                        const check = () => {
+                          if (item.end_time > 0 && el.currentTime >= item.end_time - 0.1) {
                             el.pause()
                             setHeroIndex(prev => (prev + 1) % heroItems.length)
+                            return
                           }
+                          rafId = requestAnimationFrame(check)
                         }
-                        el.addEventListener('timeupdate', onTimeUpdate)
-                        el._cleanup = () => el.removeEventListener('timeupdate', onTimeUpdate)
+                        rafId = requestAnimationFrame(check)
+                        el._cleanup = () => cancelAnimationFrame(rafId)
                       } else {
                         el.pause()
                         if (el._cleanup) el._cleanup()
