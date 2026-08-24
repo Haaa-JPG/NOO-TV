@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload, Play } from 'lucide-react'
+import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload, Play, X } from 'lucide-react'
 import Link from 'next/link'
 
 function sanitize(str) {
@@ -219,6 +219,9 @@ export default function AdminPanel() {
   // Intro video
   const [introVideoUrl, setIntroVideoUrl] = useState('')
   const [savingIntro, setSavingIntro] = useState(false)
+
+  // Preview
+  const [previewUrl, setPreviewUrl] = useState(null)
 
   useEffect(() => {
     checkAuth()
@@ -1119,6 +1122,17 @@ export default function AdminPanel() {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
+                      {(movie.embed_url || movie.active_stream_url) && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setPreviewUrl(movie.active_stream_url || movie.embed_url)}
+                          title="معاينة"
+                          className="text-blue-500"
+                        >
+                          <Play className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1410,6 +1424,17 @@ export default function AdminPanel() {
                                       >
                                         <Edit className="w-4 h-4" />
                                       </Button>
+                                      {(ep.embed_url || ep.active_stream_url) && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => setPreviewUrl(ep.active_stream_url || ep.embed_url)}
+                                          title="معاينة"
+                                          className="text-blue-500"
+                                        >
+                                          <Play className="w-4 h-4" />
+                                        </Button>
+                                      )}
                                       <Button
                                         size="sm"
                                         variant="ghost"
@@ -2228,6 +2253,45 @@ export default function AdminPanel() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Preview Modal */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}>
+          <div className="relative w-full max-w-4xl" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewUrl(null)}
+              className="absolute -top-10 left-0 text-white hover:text-red-500 transition z-10"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            {/\.(mp4|webm|ogv|ogg|mov|m4v)(\?.*)?$/i.test(previewUrl) ? (
+              <video
+                src={previewUrl}
+                controls
+                autoPlay
+                className="w-full rounded-lg bg-black"
+                style={{ maxHeight: '80vh' }}
+              />
+            ) : /\.m3u8(\?.*)?$/i.test(previewUrl) ? (
+              <video
+                src={previewUrl}
+                controls
+                autoPlay
+                className="w-full rounded-lg bg-black"
+                style={{ maxHeight: '80vh' }}
+              />
+            ) : (
+              <iframe
+                src={previewUrl}
+                className="w-full rounded-lg bg-black border-0"
+                style={{ height: '70vh' }}
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
