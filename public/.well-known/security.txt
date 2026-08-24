@@ -1,0 +1,3 @@
+Contact: https://noo-tv.vercel.app/complaints
+Policy: https://noo-tv.vercel.app/privacy
+Preferred-Languages: ar, en

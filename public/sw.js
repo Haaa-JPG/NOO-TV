@@ -71,9 +71,6 @@ self.addEventListener('fetch', (event) => {
       if (!responseHeaders.has('access-control-allow-origin')) {
         responseHeaders.set('Access-Control-Allow-Origin', '*');
       }
-      if (!responseHeaders.has('access-control-allow-credentials')) {
-        responseHeaders.set('Access-Control-Allow-Credentials', 'true');
-      }
       if (!responseHeaders.has('access-control-expose-headers')) {
         responseHeaders.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
       }

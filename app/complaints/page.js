@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { supabase } from '@/lib/supabase'
+
 import { useToast } from '@/hooks/use-toast'
 
 export default function ComplaintsPage() {
@@ -27,12 +27,18 @@ export default function ComplaintsPage() {
       return
     }
     setLoading(true)
-    const { error } = await supabase.from('complaints').insert({ email, subject, message })
-    if (error) {
-      toast({ title: 'حدث خطأ', description: error.message, variant: 'destructive' })
-    } else {
+    try {
+      const res = await fetch('/api/complaints', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, subject, message }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
       setSent(true)
       toast({ title: 'تم إرسال شكواك بنجاح' })
+    } catch (err) {
+      toast({ title: 'حدث خطأ', description: err.message, variant: 'destructive' })
     }
     setLoading(false)
   }
