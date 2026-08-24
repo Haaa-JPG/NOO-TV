@@ -1084,7 +1084,18 @@ export default function AdminPanel() {
                           {movie.year} • {movie.category} • {movie.quality}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <p className="text-sm text-gray-500">{movie.views || 0} مشاهدة</p>
+                          <button
+                            className="text-sm text-gray-500 hover:text-red-400 transition cursor-pointer"
+                            onClick={async () => {
+                              if (!confirm('هل تريد إعادة تعيين المشاهدات؟')) return
+                              await supabase.from('movies').update({ views: 0 }).eq('id', movie.id)
+                              toast({ title: 'تم إعادة تعيين المشاهدات' })
+                              loadData()
+                            }}
+                            title="اضغط لإعادة التعيين"
+                          >
+                            {movie.views || 0} مشاهدة
+                          </button>
                           <ExpiryBadge embedUrl={movie.active_stream_url || movie.embed_url} lastRefreshed={movie.last_refreshed} />
                         </div>
                       </div>
@@ -1408,7 +1419,18 @@ export default function AdminPanel() {
                                         الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
                                       </div>
                                       <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
+                                        <button
+                                          className="text-xs text-gray-500 hover:text-red-400 transition cursor-pointer"
+                                          onClick={async () => {
+                                            if (!confirm('هل تريد إعادة تعيين المشاهدات؟')) return
+                                            await supabase.from('episodes').update({ views: 0 }).eq('id', ep.id)
+                                            toast({ title: 'تم إعادة تعيين المشاهدات' })
+                                            await toggleSeason(expandedSeason.id)
+                                          }}
+                                          title="اضغط لإعادة التعيين"
+                                        >
+                                          {ep.views || 0} مشاهدة
+                                        </button>
                                         <ExpiryBadge embedUrl={ep.active_stream_url || ep.embed_url} lastRefreshed={ep.last_refreshed} />
                                       </div>
                                     </div>
