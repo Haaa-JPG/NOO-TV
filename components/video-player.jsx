@@ -26,7 +26,19 @@ function parseYouTube(url) {
   ]
   for (const p of patterns) {
     const m = url.match(p)
-    if (m) return { embed: `https://www.youtube.com/embed/${m[1]}`, type: 'iframe' }
+    if (m) {
+      const params = new URLSearchParams({
+        modestbranding: '1',
+        rel: '0',
+        controls: '1',
+        iv_load_policy: '3',
+        showinfo: '0',
+        cc_load_policy: '1',
+        playsinline: '1',
+        autoplay: '0',
+      })
+      return { embed: `https://www.youtube-nocookie.com/embed/${m[1]}?${params.toString()}`, type: 'youtube' }
+    }
   }
   return null
 }
@@ -107,6 +119,42 @@ function toEmbedUrl(url) {
     parseDailymotion(normalized) ||
     parseWistia(normalized) ||
     { embed: normalized, type: detectType(normalized) }
+  )
+}
+
+function YouTubePlayer({ src, title }) {
+  const [playing, setPlaying] = useState(false)
+
+  const playUrl = playing ? src + (src.includes('?') ? '&' : '?') + 'autoplay=1' : src
+
+  return (
+    <div className="absolute inset-0 w-full h-full bg-black">
+      <iframe
+        src={playUrl}
+        className="absolute inset-0 w-full h-full"
+        title={title}
+        allowFullScreen
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+      {/* Overlay to hide YouTube top bar and logo */}
+      <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-black/90 to-transparent pointer-events-none z-10" />
+      {/* Overlay to hide bottom right YouTube logo */}
+      <div className="absolute bottom-14 right-0 w-16 h-6 bg-black/80 pointer-events-none z-10 rounded-tl-lg" />
+      {/* Custom play button overlay */}
+      {!playing && (
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer z-20"
+          onClick={() => setPlaying(true)}
+        >
+          <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700 transition shadow-2xl">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -506,6 +554,10 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
         onError={() => {}}
       />
     )
+  }
+
+  if (result.type === 'youtube') {
+    return <YouTubePlayer src={result.embed} title={title} />
   }
 
   return (
