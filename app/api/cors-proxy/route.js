@@ -126,7 +126,7 @@ export async function GET(request) {
       headers,
     });
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy failed', details: error.message }, { status: 502 });
+    return NextResponse.json({ error: 'Proxy failed' }, { status: 502 });
   }
 }
 
@@ -163,6 +163,6 @@ export async function HEAD(request) {
 
     return new Response(null, { status: response.status, headers });
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy failed', details: error.message }, { status: 502 });
+    return NextResponse.json({ error: 'Proxy failed' }, { status: 502 });
   }
 }

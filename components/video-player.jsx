@@ -7,7 +7,9 @@ const EXTRACT_API = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
 const SOURCE_PATTERNS = [
   /z\.3isk\.news/i,
   /qrmzi\.tv/i,
+  /3isk/i,
   /krmzi\.space/i,
+  /anaplayer/i,
 ]
 
 function isSourcePageUrl(url) {

@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server'
-import { Client } from 'pg'
+import { getDbClient } from '@/lib/db'
 
 export async function GET() {
   let client
   try {
-    client = new Client({
-      connectionString: process.env.DATABASE_URL || 'postgresql://postgres.ykrslhhpjgfqkyutlxbx:Hashim.2001664933-2008@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres',
-      ssl: { rejectUnauthorized: false }
-    })
+    client = getDbClient()
     await client.connect()
     const result = await client.query(
       `SELECT setting_value FROM site_settings WHERE setting_key = 'intro_video_url'`

@@ -42,8 +42,8 @@ function isAllowedUrl(urlString) {
     for (const host of ALLOWED_HOSTS) {
       if (host.startsWith('.')) {
         if (hostname.endsWith(host) || hostname === host.slice(1)) return true
-      } else if (hostname.includes(host)) {
-        return true
+      } else {
+        if (hostname === host || hostname.endsWith('.' + host)) return true
       }
     }
     return false
@@ -162,7 +162,7 @@ export async function GET(request) {
     const body = await response.arrayBuffer()
     return new NextResponse(body, { status: 200, headers })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy failed', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Proxy failed' }, { status: 500 })
   }
 }
 
