@@ -827,6 +827,19 @@ export default function AdminPanel() {
     router.push('/')
   }
 
+  const handleResetViews = async () => {
+    if (!confirm('هل أنت متأكد من حذف كل المشاهدات؟ سيتم تصفير عداد المشاهدات لجميع الأفلام والمسلسلات.')) return
+    try {
+      await supabase.from('movies').update({ views: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('series').update({ views: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('episodes').update({ views: 0 }).neq('id', '00000000-0000-0000-0000-000000000000')
+      toast({ title: 'تم تصفير كل المشاهدات' })
+      loadData()
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -861,11 +874,22 @@ export default function AdminPanel() {
             { label: 'إجمالي الأفلام', value: stats.totalMovies, color: 'text-red-600' },
             { label: 'إجمالي المسلسلات', value: stats.totalSeries, color: 'text-blue-600' },
             { label: 'إجمالي المستخدمين', value: stats.totalUsers, color: 'text-green-600' },
-            { label: 'إجمالي المشاهدات', value: stats.totalViews, color: 'text-yellow-600' },
+            { label: 'إجمالي المشاهدات', value: stats.totalViews, color: 'text-yellow-600', onDelete: handleResetViews },
           ].map((stat) => (
             <Card key={stat.label} className="bg-gray-900 border-gray-800">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-gray-400">{stat.label}</CardTitle>
+                <CardTitle className="text-sm text-gray-400 flex items-center justify-between">
+                  {stat.label}
+                  {stat.onDelete && (
+                    <button
+                      onClick={stat.onDelete}
+                      className="text-red-500 hover:text-red-400 transition"
+                      title="حذف كل المشاهدات"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className={`text-3xl font-bold ${stat.color}`}>{stat.value}</div>
@@ -1084,18 +1108,7 @@ export default function AdminPanel() {
                           {movie.year} • {movie.category} • {movie.quality}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <button
-                            className="text-sm text-gray-500 hover:text-red-400 transition cursor-pointer"
-                            onClick={async () => {
-                              if (!confirm('هل تريد إعادة تعيين المشاهدات؟')) return
-                              await supabase.from('movies').update({ views: 0 }).eq('id', movie.id)
-                              toast({ title: 'تم إعادة تعيين المشاهدات' })
-                              loadData()
-                            }}
-                            title="اضغط لإعادة التعيين"
-                          >
-                            {movie.views || 0} مشاهدة
-                          </button>
+                          <p className="text-sm text-gray-500">{movie.views || 0} مشاهدة</p>
                           <ExpiryBadge embedUrl={movie.active_stream_url || movie.embed_url} lastRefreshed={movie.last_refreshed} />
                         </div>
                       </div>
@@ -1419,18 +1432,7 @@ export default function AdminPanel() {
                                         الحلقة {ep.episode_number}: {ep.title || `الحلقة ${ep.episode_number}`}
                                       </div>
                                       <div className="flex items-center gap-2 mt-1">
-                                        <button
-                                          className="text-xs text-gray-500 hover:text-red-400 transition cursor-pointer"
-                                          onClick={async () => {
-                                            if (!confirm('هل تريد إعادة تعيين المشاهدات؟')) return
-                                            await supabase.from('episodes').update({ views: 0 }).eq('id', ep.id)
-                                            toast({ title: 'تم إعادة تعيين المشاهدات' })
-                                            await toggleSeason(expandedSeason.id)
-                                          }}
-                                          title="اضغط لإعادة التعيين"
-                                        >
-                                          {ep.views || 0} مشاهدة
-                                        </button>
+                                        <span className="text-xs text-gray-500">{ep.views || 0} مشاهدة</span>
                                         <ExpiryBadge embedUrl={ep.active_stream_url || ep.embed_url} lastRefreshed={ep.last_refreshed} />
                                       </div>
                                     </div>
