@@ -4,8 +4,8 @@ export function middleware(request) {
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith('/admin')) {
-    const tokenCookie = request.cookies.get('sb-')
-    if (!tokenCookie) {
+    const hasAuth = request.cookies.getAll().some(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'))
+    if (!hasAuth) {
       return NextResponse.redirect(new URL('/auth', request.url))
     }
   }
