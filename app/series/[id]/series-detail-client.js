@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Play, Star, Heart, Eye, Calendar } from 'lucide-react'
+import { Play, Star, Heart, Eye, Calendar, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SeriesDetailClient() {
   const params = useParams()
@@ -51,6 +52,7 @@ export default function SeriesDetailClient() {
         m.content = data.description || `شاهد ${data.title} مجاناً على NOO TV`
         document.head.appendChild(m)
       }
+    }
     setLoading(false)
   }
 
