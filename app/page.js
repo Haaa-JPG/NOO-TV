@@ -55,8 +55,8 @@ export default function Home() {
         if (item.end_time > 0 && item.end_time > (item.start_time || 0)) {
           const duration = item.end_time - (item.start_time || 0)
           heroTimers.current[item.id] = setTimeout(() => {
-            el.pause()
-            setHeroIndex(prev => (prev + 1) % heroItems.length)
+            el.currentTime = item.start_time || 0
+            el.play().catch(() => {})
           }, duration * 1000)
         }
       } else {
@@ -399,10 +399,16 @@ export default function Home() {
                   poster={item.poster_url}
                   autoPlay={isActive}
                   muted
-                  loop={false}
+                  loop={!item.end_time || item.end_time <= 0}
                   playsInline
                   className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`}
                   ref={el => { if (el) videoRefs.current[item.id] = el }}
+                  onTimeUpdate={(e) => {
+                    if (item.end_time > 0 && e.target.currentTime >= item.end_time) {
+                      e.target.currentTime = item.start_time || 0
+                      e.target.play()
+                    }
+                  }}
                 />
               )
             }
