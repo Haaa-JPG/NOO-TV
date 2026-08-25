@@ -146,7 +146,7 @@ export default function SeriesDetailClient() {
             <video
               key={videoKey}
               ref={(el) => {
-                if (el && startTime > 0 && el.readyState > 0) {
+                if (el && el.readyState >= 2 && startTime > 0) {
                   el.currentTime = startTime
                 }
               }}
@@ -154,13 +154,21 @@ export default function SeriesDetailClient() {
               className="w-full h-full object-cover"
               autoPlay
               muted
-              loop
               playsInline
+              loop={!endTime || endTime <= startTime}
               onLoadedData={(e) => {
-                if (startTime > 0) e.target.currentTime = startTime
+                if (startTime > 0) {
+                  e.target.currentTime = startTime
+                }
               }}
               onTimeUpdate={(e) => {
                 if (endTime > 0 && e.target.currentTime >= endTime) {
+                  e.target.currentTime = startTime
+                  e.target.play()
+                }
+              }}
+              onEnded={(e) => {
+                if (startTime > 0) {
                   e.target.currentTime = startTime
                   e.target.play()
                 }
