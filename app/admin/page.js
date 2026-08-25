@@ -128,6 +128,8 @@ const emptySeriesForm = () => ({
   thumbnail: '',
   banner: '',
   trailer_url: '',
+  trailer_start_time: 0,
+  trailer_end_time: 0,
   is_translated: false,
   is_dubbed: false,
   is_active: true,
@@ -1575,6 +1577,29 @@ export default function AdminPanel() {
                           />
                           <p className="text-xs text-gray-500 mt-1">سيتم تشغيل الفيديو كخلفية بدون عرض شعار يوتيوب</p>
                         </div>
+
+                        {seriesForm.trailer_url && (
+                          <div className="flex gap-4">
+                            <div className="flex-1">
+                              <Label>وقت البداية (mm:ss)</Label>
+                              <Input
+                                value={seriesForm.trailer_start_time ? secondsToMmss(seriesForm.trailer_start_time) : ''}
+                                onChange={(e) => setSeriesForm({ ...seriesForm, trailer_start_time: mmssToSeconds(e.target.value) })}
+                                className="bg-black border-gray-700"
+                                placeholder="0:00"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <Label>وقت النهاية (mm:ss)</Label>
+                              <Input
+                                value={seriesForm.trailer_end_time ? secondsToMmss(seriesForm.trailer_end_time) : ''}
+                                onChange={(e) => setSeriesForm({ ...seriesForm, trailer_end_time: mmssToSeconds(e.target.value) })}
+                                className="bg-black border-gray-700"
+                                placeholder="0:30"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <div className="flex flex-wrap gap-4">
                           <label className="flex items-center gap-2 cursor-pointer">

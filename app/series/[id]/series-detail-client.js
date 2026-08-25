@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -31,10 +31,32 @@ export default function SeriesDetailClient() {
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [user, setUser] = useState(null)
   const [showFullDesc, setShowFullDesc] = useState(false)
+  const [videoKey, setVideoKey] = useState(0)
+  const timerRef = useRef(null)
+
+  const youtubeId = show ? parseYouTubeId(show.trailer_url) : null
+  const startTime = show?.trailer_start_time || 0
+  const endTime = show?.trailer_end_time || 0
+  const hasVideoRange = !!youtubeId && endTime > startTime
+
+  const restartVideo = useCallback(() => {
+    setVideoKey(k => k + 1)
+  }, [])
 
   useEffect(() => {
     loadData()
   }, [params.id])
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (hasVideoRange) {
+      const duration = (endTime - startTime) * 1000
+      timerRef.current = setTimeout(() => {
+        restartVideo()
+      }, duration)
+    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [videoKey, hasVideoRange, startTime, endTime, restartVideo])
 
   const loadData = async () => {
     const { user: u } = await getCurrentUser()
@@ -98,9 +120,9 @@ export default function SeriesDetailClient() {
     )
   }
 
-  const youtubeId = parseYouTubeId(show.trailer_url)
-  const hasVideo = !!youtubeId
   const bgImage = show.banner || show.thumbnail
+  const youtubeIdVal = parseYouTubeId(show.trailer_url)
+  const useVideo = !!youtubeIdVal
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -114,13 +136,14 @@ export default function SeriesDetailClient() {
         </div>
       </header>
 
-      <section className="relative h-[50vh] min-h-[350px] max-h-[500px] sm:h-[55vh] sm:min-h-[400px] sm:max-h-[550px] md:h-[60vh] md:min-h-[450px] md:max-h-[600px] lg:h-[65vh] lg:min-h-[500px] lg:max-h-[650px] overflow-hidden mt-14">
+      <section className="relative w-full h-[55vh] min-h-[350px] max-h-[550px] sm:h-[60vh] sm:min-h-[400px] sm:max-h-[600px] md:h-[65vh] md:min-h-[450px] md:max-h-[650px] lg:h-[70vh] lg:min-h-[500px] lg:max-h-[700px] overflow-hidden mt-14">
         {/* Background: Video or Image */}
-        {hasVideo ? (
-          <div className="absolute inset-0 overflow-hidden">
+        {useVideo ? (
+          <div className="absolute inset-0 overflow-hidden bg-black">
             <iframe
-              src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&playlist=${youtubeId}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&disablekb=1&start=0`}
-              className="absolute top-1/2 left-1/2 w-[120%] h-[120%] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+              key={videoKey}
+              src={`https://www.youtube-nocookie.com/embed/${youtubeIdVal}?autoplay=1&mute=1&loop=0&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&disablekb=1&start=${startTime}&end=${endTime}`}
+              className="absolute top-1/2 left-1/2 w-screen h-screen -translate-x-1/2 -translate-y-1/2 min-w-[100vw] min-h-[100vh]"
               allow="autoplay; encrypted-media"
               allowFullScreen={false}
               frameBorder="0"
@@ -135,13 +158,13 @@ export default function SeriesDetailClient() {
         )}
 
         {/* Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
 
-        {/* Series Info - Bottom of hero */}
+        {/* Series Info */}
         <div className="absolute bottom-0 left-0 right-0 pb-6 sm:pb-8 md:pb-10 px-4 sm:px-6 md:container md:mx-auto">
           <div className="flex flex-col md:flex-row items-start gap-4 md:gap-6">
-            {/* Poster - Desktop only */}
+            {/* Poster */}
             <div className="hidden md:block shrink-0">
               <img
                 src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=400'}
@@ -151,17 +174,14 @@ export default function SeriesDetailClient() {
             </div>
 
             <div className="flex-1 min-w-0">
-              {/* Badges */}
               <div className="flex items-center gap-2 mb-2 sm:mb-3">
                 {show.is_translated && <Badge className="bg-green-600 text-[10px] sm:text-xs">مترجم</Badge>}
                 {show.is_dubbed && <Badge className="bg-blue-600 text-[10px] sm:text-xs">مدبلج</Badge>}
                 {show.release_day && <Badge className="bg-purple-600 text-[10px] sm:text-xs">يعرض {show.release_day}</Badge>}
               </div>
 
-              {/* Title */}
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-2 sm:mb-3">{show.title}</h1>
 
-              {/* Meta */}
               <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-300 mb-3 sm:mb-4">
                 <div className="flex items-center gap-1">
                   <Star className="w-3 h-3 sm:w-4 sm:h-4 fill-yellow-500 text-yellow-500" />
@@ -177,7 +197,6 @@ export default function SeriesDetailClient() {
                 </div>
               </div>
 
-              {/* Description */}
               {show.description && (
                 <div className="mb-4 sm:mb-5 md:mb-6 max-w-2xl">
                   <p className={`text-gray-300 text-xs sm:text-sm md:text-base leading-relaxed ${!showFullDesc ? 'line-clamp-3' : ''}`}>
@@ -194,7 +213,6 @@ export default function SeriesDetailClient() {
                 </div>
               )}
 
-              {/* Buttons */}
               <div className="flex flex-wrap gap-2 sm:gap-3">
                 <Button
                   size="sm"
