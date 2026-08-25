@@ -12,8 +12,19 @@ const tajawal = Tajawal({
 })
 
 export const metadata = {
-  title: 'NOO TV - منصة البث العربية',
-  description: 'شاهد آلاف الأفلام والمسلسلات العربية والعالمية',
+  title: {
+    default: 'NOO TV - منصة أفلام ومسلسلات مجانية',
+    template: '%s | NOO TV',
+  },
+  description: 'شاهد أحدث الأفلام والمسلسلات العربية والعالمية مجاناً بجودة عالية. ترجمة مدبلجة. NOO TV منصة البث الأولى.',
+  keywords: ['مسلسلات عربية', 'أفلام عربية', 'مشاهدة مجاناً', ' streaming', 'مسلسلات مترجمة', 'أفلام مدبلجة', 'نوفا', 'NOO TV', 'مسلسلات تركية', 'أفلام هندية', 'أنمي', 'דרاما', 'كوميديا', 'أكشن'],
+  authors: [{ name: 'NOO TV' }],
+  creator: 'NOO TV',
+  publisher: 'NOO TV',
+  metadataBase: new URL('https://noo-tv.vercel.app'),
+  alternates: {
+    canonical: '/',
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -24,9 +35,37 @@ export const metadata = {
     telephone: false,
   },
   openGraph: {
-    title: 'NOO TV - منصة البث العربية',
-    description: 'شاهد آلاف الأفلام والمسلسلات العربية والعالمية',
+    title: 'NOO TV - منصة أفلام ومسلسلات مجانية',
+    description: 'شاهد أحدث الأفلام والمسلسلات العربية والعالمية مجاناً بجودة عالية',
+    url: 'https://noo-tv.vercel.app',
+    siteName: 'NOO TV',
+    locale: 'ar_SA',
     type: 'website',
+    images: [
+      {
+        url: '/og-default.png',
+        width: 1200,
+        height: 630,
+        alt: 'NOO TV - منصة البث العربية',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NOO TV - منصة أفلام ومسلسلات مجانية',
+    description: 'شاهد أحدث الأفلام والمسلسلات العربية والعالمية مجاناً بجودة عالية',
+    images: ['/og-default.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 }
 

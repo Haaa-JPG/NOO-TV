@@ -1,7 +1,47 @@
 User-agent: *
 Allow: /
+Allow: /series
+Allow: /series/*
+Allow: /watch/movie/*
+Allow: /watch/series/*
 Disallow: /admin
 Disallow: /api/
 Disallow: /auth
+Disallow: /user
+Disallow: /complaints
+
+User-agent: Googlebot
+Allow: /
+Allow: /series
+Allow: /series/*
+Allow: /watch/movie/*
+Allow: /watch/series/*
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth
+Disallow: /user
+
+User-agent: Bingbot
+Allow: /
+Allow: /series
+Allow: /series/*
+Allow: /watch/movie/*
+Allow: /watch/series/*
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth
+Disallow: /user
+
+User-agent: twitterbot
+Allow: /
+Allow: /series/*
+Allow: /watch/movie/*
+Allow: /watch/series/*
+
+User-agent: facebookbot
+Allow: /
+Allow: /series/*
+Allow: /watch/movie/*
+Allow: /watch/series/*
 
 Sitemap: https://noo-tv.vercel.app/sitemap.xml
