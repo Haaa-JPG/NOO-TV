@@ -425,7 +425,7 @@ export default function Home() {
               )}
               <div className="flex gap-3 md:gap-4">
                 {heroItems[heroIndex]?.content_type === 'video' && heroItems[heroIndex]?.series_id ? (
-                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push(`/watch/series/${heroItems[heroIndex].series_id}`)}>
+                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white" onClick={() => router.push(`/series/${heroItems[heroIndex].series_id}`)}>
                     <Play className="w-5 h-5 ml-2" />
                     ابدأ المشاهدة
                   </Button>
