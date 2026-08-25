@@ -154,14 +154,14 @@ export default function SeriesDetailClient() {
           </div>
         ) : (
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="absolute inset-0 bg-contain bg-center"
             style={{ backgroundImage: `url(${bgImage})` }}
           />
         )}
 
         {/* Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/10" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />
 
         {/* Series Info */}
         <div className="absolute bottom-0 left-0 right-0 pb-6 sm:pb-8 md:pb-10 px-4 sm:px-6 md:container md:mx-auto">
