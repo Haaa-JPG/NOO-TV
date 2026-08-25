@@ -127,6 +127,7 @@ const emptySeriesForm = () => ({
   total_seasons: 1,
   thumbnail: '',
   banner: '',
+  trailer_url: '',
   is_translated: false,
   is_dubbed: false,
   is_active: true,
@@ -1562,6 +1563,17 @@ export default function AdminPanel() {
                               placeholder="https://..."
                             />
                           </div>
+                        </div>
+
+                        <div>
+                          <Label>رابط فيديو الإعلان (YouTube)</Label>
+                          <Input
+                            value={seriesForm.trailer_url || ''}
+                            onChange={(e) => setSeriesForm({ ...seriesForm, trailer_url: e.target.value })}
+                            className="bg-black border-gray-700"
+                            placeholder="https://www.youtube.com/watch?v=..."
+                          />
+                          <p className="text-xs text-gray-500 mt-1">سيتم تشغيل الفيديو كخلفية بدون عرض شعار يوتيوب</p>
                         </div>
 
                         <div className="flex flex-wrap gap-4">
