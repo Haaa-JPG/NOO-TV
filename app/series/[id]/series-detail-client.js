@@ -17,8 +17,8 @@ export default function SeriesDetailClient() {
   const [expandedSeason, setExpandedSeason] = useState(null)
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [user, setUser] = useState(null)
-  const [showFullDesc, setShowFullDesc] = useState(false)
   const [episodeProgress, setEpisodeProgress] = useState({})
+  const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -194,10 +194,10 @@ export default function SeriesDetailClient() {
 
               {show.description && (
                 <div className="mb-3 sm:mb-4 md:mb-6 max-w-2xl">
-                  <p className={`text-gray-300 text-xs sm:text-sm md:text-base leading-relaxed ${!showFullDesc ? 'line-clamp-4' : ''}`}>{show.description}</p>
+                  <p className={`text-gray-300 text-xs sm:text-sm md:text-base leading-relaxed ${!showFullDesc ? 'line-clamp-3' : ''}`}>{show.description}</p>
                   {show.description.length > 150 && (
-                    <button onClick={() => setShowFullDesc(!showFullDesc)} className="text-red-500 hover:text-red-400 text-xs sm:text-sm font-semibold mt-1 transition">
-                      {showFullDesc ? 'عرض أقل' : '...المزيد'}
+                    <button onClick={() => setShowFullDesc(!showFullDesc)} className="text-red-500 hover:text-red-400 text-xs sm:text-sm mt-1 font-semibold">
+                      {showFullDesc ? 'عرض أقل' : 'المزيد'}
                     </button>
                   )}
                 </div>
