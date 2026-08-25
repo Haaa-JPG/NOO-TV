@@ -136,19 +136,21 @@ export default function SeriesDetailClient() {
         </div>
       </header>
 
-      <section className="relative w-full h-[55vh] min-h-[350px] max-h-[550px] sm:h-[60vh] sm:min-h-[400px] sm:max-h-[600px] md:h-[65vh] md:min-h-[450px] md:max-h-[650px] lg:h-[70vh] lg:min-h-[500px] lg:max-h-[700px] overflow-hidden mt-14">
+      <section className="relative w-full h-[60vh] min-h-[350px] sm:h-[65vh] sm:min-h-[400px] md:h-[70vh] md:min-h-[450px] lg:h-[75vh] lg:min-h-[500px] overflow-hidden mt-14">
         {/* Background: Video or Image */}
         {useVideo ? (
           <div className="absolute inset-0 overflow-hidden bg-black">
-            <iframe
-              key={videoKey}
-              src={`https://www.youtube-nocookie.com/embed/${youtubeIdVal}?autoplay=1&mute=1&loop=0&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&disablekb=1&start=${startTime}&end=${endTime}`}
-              className="absolute top-1/2 left-1/2 w-screen h-screen -translate-x-1/2 -translate-y-1/2 min-w-[100vw] min-h-[100vh]"
-              allow="autoplay; encrypted-media"
-              allowFullScreen={false}
-              frameBorder="0"
-              title=""
-            />
+            <div className="absolute top-1/2 left-1/2 w-[178%] h-[178%] -translate-x-1/2 -translate-y-1/2">
+              <iframe
+                key={videoKey}
+                src={`https://www.youtube-nocookie.com/embed/${youtubeIdVal}?autoplay=1&mute=1&loop=0&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&disablekb=1&start=${startTime}&end=${endTime}`}
+                className="w-full h-full"
+                allow="autoplay; encrypted-media"
+                allowFullScreen={false}
+                frameBorder="0"
+                title=""
+              />
+            </div>
           </div>
         ) : (
           <div
@@ -158,8 +160,8 @@ export default function SeriesDetailClient() {
         )}
 
         {/* Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/10" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent" />
 
         {/* Series Info */}
         <div className="absolute bottom-0 left-0 right-0 pb-6 sm:pb-8 md:pb-10 px-4 sm:px-6 md:container md:mx-auto">
