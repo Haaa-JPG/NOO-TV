@@ -37,6 +37,7 @@ export default function SeriesDetailClient() {
   const [showFullDesc, setShowFullDesc] = useState(false)
   const [videoKey, setVideoKey] = useState(0)
   const timerRef = useRef(null)
+  const videoRef = useRef(null)
 
   const youtubeId = show ? parseYouTubeId(show.trailer_url) : null
   const isVideoMp4 = show ? isMp4(show.trailer_url) : false
@@ -51,6 +52,20 @@ export default function SeriesDetailClient() {
   useEffect(() => {
     loadData()
   }, [params.id])
+
+  useEffect(() => {
+    if (!isVideoMp4 || !videoRef.current) return
+    const vid = videoRef.current
+    const check = () => {
+      if (!vid) return
+      if (endTime > 0 && vid.currentTime >= endTime) {
+        vid.currentTime = startTime
+        vid.play()
+      }
+    }
+    const interval = setInterval(check, 200)
+    return () => clearInterval(interval)
+  }, [isVideoMp4, startTime, endTime, videoKey])
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -142,36 +157,29 @@ export default function SeriesDetailClient() {
       <section className="relative w-full h-[60vh] min-h-[350px] sm:h-[65vh] sm:min-h-[400px] md:h-[70vh] md:min-h-[450px] lg:h-[75vh] lg:min-h-[500px] overflow-hidden mt-14">
         {/* Background: Video or Image */}
         {isVideoMp4 ? (
-          <div className="absolute inset-0 overflow-hidden bg-black flex items-center justify-center">
+          <div className="absolute inset-0 overflow-hidden bg-black">
             <video
               key={videoKey}
-              ref={(el) => {
-                if (el && el.readyState >= 2 && startTime > 0) {
-                  el.currentTime = startTime
-                }
-              }}
+              ref={videoRef}
               src={show.trailer_url}
               className="w-full h-full object-cover"
               autoPlay
               muted
               playsInline
-              loop={!endTime || endTime <= startTime}
-              onLoadedData={(e) => {
+              onLoadedMetadata={(e) => {
                 if (startTime > 0) {
                   e.target.currentTime = startTime
                 }
               }}
               onTimeUpdate={(e) => {
-                if (endTime > 0 && e.target.currentTime >= endTime) {
+                if (endTime > 0 && endTime > startTime && e.target.currentTime >= endTime) {
                   e.target.currentTime = startTime
                   e.target.play()
                 }
               }}
               onEnded={(e) => {
-                if (startTime > 0) {
-                  e.target.currentTime = startTime
-                  e.target.play()
-                }
+                e.target.currentTime = startTime
+                e.target.play()
               }}
             />
           </div>
