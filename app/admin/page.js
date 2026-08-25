@@ -135,14 +135,22 @@ const emptySeriesForm = () => ({
 })
 
 const DAYS_OF_WEEK = [
-  { value: 'الأحد', label: 'الأحد' },
+  { value: 'السبت', label: 'السبت' },
+  {_value: 'الأحد', label: 'الأحد' },
   { value: 'الاثنين', label: 'الاثنين' },
   { value: 'الثلاثاء', label: 'الثلاثاء' },
   { value: 'الأربعاء', label: 'الأربعاء' },
   { value: 'الخميس', label: 'الخميس' },
+  { value: 'الجمعة', label: 'الجمعة' },
 ]
 
-const DAY_ORDER = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
+const DAY_RANGES = [
+  { value: 'الأحد إلى الخميس', label: 'الأحد إلى الخميس' },
+  { value: 'السبت إلى الخميس', label: 'السبت إلى الخميس' },
+  { value: 'السبت إلى الجمعة', label: 'كل يوم' },
+]
+
+const DAY_ORDER = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
 
 const emptyCategoryForm = () => ({
   name: '',
@@ -1597,6 +1605,10 @@ export default function AdminPanel() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">بدون تحديد</SelectItem>
+                              {DAY_RANGES.map((range) => (
+                                <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
+                              ))}
+                              <div className="border-t border-gray-700 my-1" />
                               {DAYS_OF_WEEK.map((day) => (
                                 <SelectItem key={day.value} value={day.value}>{day.label}</SelectItem>
                               ))}
@@ -1631,7 +1643,7 @@ export default function AdminPanel() {
                           <h3 className="font-bold text-lg">{show.title}</h3>
                           <p className="text-sm text-gray-400">
                             {show.category} • {show.total_seasons} مواسم
-                            {show.release_day && <span className="mr-2 text-red-400">• {show.release_day}</span>}
+                            {show.release_day && <span className="mr-2 text-red-400">• يعرض {show.release_day}</span>}
                           </p>
                         </div>
                         </div>

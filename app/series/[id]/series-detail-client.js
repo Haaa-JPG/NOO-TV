@@ -168,7 +168,7 @@ export default function SeriesDetailClient() {
               <div className="flex items-center gap-2 mb-1 sm:mb-2">
                 {show.is_translated && <Badge className="bg-green-600 text-[10px] sm:text-xs">مترجم</Badge>}
                 {show.is_dubbed && <Badge className="bg-blue-600 text-[10px] sm:text-xs">مدبلج</Badge>}
-                {show.release_day && <Badge className="bg-purple-600 text-[10px] sm:text-xs">يعرض كل {show.release_day}</Badge>}
+                {show.release_day && <Badge className="bg-purple-600 text-[10px] sm:text-xs">يعرض {show.release_day}</Badge>}
               </div>
 
               <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2 md:mb-3">{show.title}</h1>
