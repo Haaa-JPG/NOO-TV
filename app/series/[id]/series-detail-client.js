@@ -18,6 +18,7 @@ export default function SeriesDetailClient() {
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [user, setUser] = useState(null)
   const [episodeProgress, setEpisodeProgress] = useState({})
+  const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -192,7 +193,14 @@ export default function SeriesDetailClient() {
               </div>
 
               {show.description && (
-                <p className="text-gray-300 mb-3 sm:mb-4 md:mb-6 text-xs sm:text-sm md:text-base max-w-2xl line-clamp-2 sm:line-clamp-3">{show.description}</p>
+                <div className="mb-3 sm:mb-4 md:mb-6 max-w-2xl">
+                  <p className={`text-gray-300 text-xs sm:text-sm md:text-base ${!showFullDesc ? 'line-clamp-2' : ''}`}>{show.description}</p>
+                  {show.description.length > 80 && (
+                    <button onClick={() => setShowFullDesc(!showFullDesc)} className="text-red-500 hover:text-red-400 text-xs sm:text-sm mt-1 font-semibold">
+                      {showFullDesc ? 'عرض أقل' : 'المزيد'}
+                    </button>
+                  )}
+                </div>
               )}
 
               <div className="flex flex-wrap gap-2 sm:gap-3">
