@@ -54,6 +54,15 @@ export default function WatchMovieClient() {
     const { data } = await supabase.from('movies').select('*').eq('id', params.id).single()
     if (data) {
       setMovie(data)
+      document.title = `${data.title} ${data.year ? `(${data.year})` : ''} | NOO TV`
+      const metaDesc = document.querySelector('meta[name="description"]')
+      if (metaDesc) metaDesc.setAttribute('content', data.description || `شاهد ${data.title} مجاناً على NOO TV`)
+      else {
+        const m = document.createElement('meta')
+        m.name = 'description'
+        m.content = data.description || `شاهد ${data.title} مجاناً على NOO TV`
+        document.head.appendChild(m)
+      }
       let sessionId = localStorage.getItem('nootv_session')
       if (!sessionId) {
         sessionId = crypto.randomUUID()

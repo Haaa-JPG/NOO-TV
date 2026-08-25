@@ -60,6 +60,15 @@ export default function SeriesDetailClient() {
 
     if (data) {
       setShow(data)
+      document.title = `${data.title} | NOO TV`
+      const metaDesc = document.querySelector('meta[name="description"]')
+      if (metaDesc) metaDesc.setAttribute('content', data.description || `شاهد ${data.title} مجاناً على NOO TV`)
+      else {
+        const m = document.createElement('meta')
+        m.name = 'description'
+        m.content = data.description || `شاهد ${data.title} مجاناً على NOO TV`
+        document.head.appendChild(m)
+      }
       await loadSeasons(data.id)
     }
     setLoading(false)

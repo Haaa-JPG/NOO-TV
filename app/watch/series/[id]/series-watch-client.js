@@ -67,6 +67,15 @@ export default function WatchSeriesClient() {
 
     if (data) {
       setShow(data)
+      document.title = `${data.title} | NOO TV`
+      const metaDesc = document.querySelector('meta[name="description"]')
+      if (metaDesc) metaDesc.setAttribute('content', data.description || `شاهد ${data.title} مجاناً على NOO TV`)
+      else {
+        const m = document.createElement('meta')
+        m.name = 'description'
+        m.content = data.description || `شاهد ${data.title} مجاناً على NOO TV`
+        document.head.appendChild(m)
+      }
       await loadSeasons(data.id, u)
       loadComments(data.id)
       let sessionId = localStorage.getItem('nootv_session')
@@ -310,6 +319,9 @@ export default function WatchSeriesClient() {
     setSelectedEpisode(episode)
     setEpisodeLike(null)
     setResumeTime(episodeProgress[episode.id]?.time || 0)
+    if (show) {
+      document.title = `${show.title} - ${episode.title || `الحلقة ${episode.episode_number}`} | NOO TV`
+    }
     if (user) {
       await supabase.from('watch_history').insert({
         user_id: user.id,
