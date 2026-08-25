@@ -7,8 +7,12 @@ const SOURCE_PATTERNS = [
   /z\.3isk\.news/i,
   /qrmzi\.tv/i,
   /3isk/i,
+  /3seq/i,
   /krmzi\.space/i,
   /anaplayer/i,
+  /cimanow/i,
+  /fajer shows/i,
+  /akwam/i,
 ]
 
 const M3U8_REGEX = /(?:https?:)?\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/gi
