@@ -135,7 +135,7 @@ export default function SeriesDetailClient() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <section className="relative h-[35vh] min-h-[250px] max-h-[350px] md:h-[45vh] md:min-h-[300px] md:max-h-[400px] overflow-hidden">
+      <section className="relative min-h-[300px] overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${show.banner || show.thumbnail})` }}
