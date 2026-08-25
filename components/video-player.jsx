@@ -3,6 +3,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import P2PVideoPlayer from './p2p-video-player'
 
 const EXTRACT_API = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
+const STREAM_API = '/api/stream'
 
 const SOURCE_PATTERNS = [
   /z\.3isk\.news/i,
@@ -253,7 +254,7 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   )
 }
 
-function SourceExtracting({ url, onExtracted, onError }) {
+function SourceExtracting({ url, contentId, contentType, onExtracted, onError }) {
   const [status, setStatus] = useState('extracting')
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState('جاري استخراج رابط الفيديو...')
@@ -272,37 +273,46 @@ function SourceExtracting({ url, onExtracted, onError }) {
     let cancelled = false
 
     async function doExtract() {
-      if (!EXTRACT_API) {
-        if (mountedRef.current && !cancelled) {
-          setError('Extract API not configured')
-          setStatus('error')
-          onError?.('Extract API not configured')
-        }
-        return
-      }
-
       if (mountedRef.current && !cancelled) {
         setStatus('extracting')
         setProgress('جاري استخراج رابط الفيديو...')
       }
 
       try {
-        const encodedUrl = encodeURIComponent(url)
-        const res = await fetch(`${EXTRACT_API}/api/extract?url=${encodedUrl}`, {
-          signal: AbortSignal.timeout(90000),
-        })
-        const data = await res.json()
+        let m3u8 = null
+
+        if (contentId) {
+          const streamUrl = `${STREAM_API}?id=${contentId}&type=${contentType || 'movie'}&format=json`
+          const res = await fetch(streamUrl, { signal: AbortSignal.timeout(30000) })
+          if (res.ok) {
+            const data = await res.json()
+            m3u8 = data.m3u8
+          }
+        }
+
+        if (!m3u8) {
+          if (!EXTRACT_API) {
+            throw new Error('No extraction method available')
+          }
+          const encodedUrl = encodeURIComponent(url)
+          const res = await fetch(`${EXTRACT_API}/api/extract?url=${encodedUrl}`, {
+            signal: AbortSignal.timeout(90000),
+          })
+          const data = await res.json()
+          m3u8 = data.m3u8
+          if (!m3u8) throw new Error(data.error || 'Extraction failed')
+        }
 
         if (cancelled) return
 
-        if (data.m3u8) {
+        if (m3u8) {
           if (mountedRef.current) {
             setStatus('success')
             setProgress('تم الاستخراج بنجاح!')
           }
-          onExtracted?.(data.m3u8)
+          onExtracted?.(m3u8)
         } else {
-          throw new Error(data.error || 'Extraction failed')
+          throw new Error('Extraction returned no URL')
         }
       } catch (err) {
         if (cancelled) return
@@ -321,7 +331,7 @@ function SourceExtracting({ url, onExtracted, onError }) {
     doExtract()
 
     return () => { cancelled = true }
-  }, [url])
+  }, [url, contentId, contentType])
 
   const retry = useCallback(() => {
     extractionRef.current = false
@@ -520,6 +530,8 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
     return (
       <SourceExtracting
         url={resolvedUrl}
+        contentId={contentId}
+        contentType={contentType}
         onExtracted={handleExtracted}
         onError={() => {}}
       />
