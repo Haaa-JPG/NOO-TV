@@ -97,3 +97,8 @@ button, a, [role="button"] {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
+
+@keyframes kenBurns {
+  0% { transform: scale(1.05); }
+  100% { transform: scale(1.12); }
+}
