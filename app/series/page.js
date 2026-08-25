@@ -109,7 +109,7 @@ function SeriesContent() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
             {series.map((show) => (
-              <Link key={show.id} href={`/watch/series/${show.id}`}>
+              <Link key={show.id} href={`/series/${show.id}`}>
                 <Card className="bg-gray-900 border-gray-800 hover:border-red-600 transition group cursor-pointer overflow-hidden">
                   <div className="relative aspect-[2/3]">
                     <img

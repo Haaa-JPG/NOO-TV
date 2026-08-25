@@ -2007,7 +2007,7 @@ export default function AdminPanel() {
                                   {!show.is_active && (
                                     <span className="text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded">مخفي</span>
                                   )}
-                                  <Link href={`/watch/series/${show.id}`}>
+                                   <Link href={`/series/${show.id}`}>
                                     <Button size="sm" variant="ghost" className="h-8">
                                       <Eye className="w-4 h-4" />
                                     </Button>
