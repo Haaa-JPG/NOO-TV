@@ -142,20 +142,23 @@ export default function SeriesDetailClient() {
       <section className="relative w-full h-[60vh] min-h-[350px] sm:h-[65vh] sm:min-h-[400px] md:h-[70vh] md:min-h-[450px] lg:h-[75vh] lg:min-h-[500px] overflow-hidden mt-14">
         {/* Background: Video or Image */}
         {isVideoMp4 ? (
-          <div className="absolute inset-0 overflow-hidden bg-black">
+          <div className="absolute inset-0 overflow-hidden bg-black flex items-center justify-center">
             <video
               key={videoKey}
               ref={(el) => {
-                if (el && startTime > 0) {
+                if (el && startTime > 0 && el.readyState > 0) {
                   el.currentTime = startTime
                 }
               }}
               src={show.trailer_url}
-              className="absolute top-1/2 left-1/2 min-w-full min-h-full w-auto h-auto -translate-x-1/2 -translate-y-1/2 object-cover"
+              className="w-full h-full object-cover"
               autoPlay
               muted
-              loop={false}
+              loop
               playsInline
+              onLoadedData={(e) => {
+                if (startTime > 0) e.target.currentTime = startTime
+              }}
               onTimeUpdate={(e) => {
                 if (endTime > 0 && e.target.currentTime >= endTime) {
                   e.target.currentTime = startTime
