@@ -5,19 +5,15 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Play, Star, ArrowRight, Heart, Clock, ListVideo, ChevronDown, Eye, Calendar } from 'lucide-react'
-import Link from 'next/link'
+import { Play, Star, Heart, Eye, Calendar } from 'lucide-react'
 
 export default function SeriesDetailClient() {
   const params = useParams()
   const router = useRouter()
   const [show, setShow] = useState(null)
-  const [seasons, setSeasons] = useState([])
   const [loading, setLoading] = useState(true)
-  const [expandedSeason, setExpandedSeason] = useState(null)
   const [isInWatchlist, setIsInWatchlist] = useState(false)
   const [user, setUser] = useState(null)
-  const [episodeProgress, setEpisodeProgress] = useState({})
   const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
@@ -36,21 +32,6 @@ export default function SeriesDetailClient() {
         .eq('content_type', 'series')
         .maybeSingle()
       if (wl) setIsInWatchlist(true)
-
-      const { data: history } = await supabase
-        .from('watch_history')
-        .select('episode_id, watched_time, duration')
-        .eq('user_id', u.id)
-        .eq('content_type', 'episode')
-        .order('watched_at', { ascending: false })
-
-      const progressMap = {}
-      ;(history || []).forEach(h => {
-        if (h.episode_id && h.watched_time > 0) {
-          progressMap[h.episode_id] = { time: h.watched_time, duration: h.duration || 0 }
-        }
-      })
-      setEpisodeProgress(progressMap)
     }
 
     const { data } = await supabase
@@ -70,39 +51,7 @@ export default function SeriesDetailClient() {
         m.content = data.description || `شاهد ${data.title} مجاناً على NOO TV`
         document.head.appendChild(m)
       }
-      await loadSeasons(data.id)
-    }
     setLoading(false)
-  }
-
-  const loadSeasons = async (seriesId) => {
-    const { data: seasonsData } = await supabase
-      .from('seasons')
-      .select('*')
-      .eq('series_id', seriesId)
-      .eq('is_active', true)
-      .order('season_number', { ascending: true })
-
-    if (!seasonsData || seasonsData.length === 0) {
-      setSeasons([])
-      return
-    }
-
-    const seasonIds = seasonsData.map(s => s.id)
-    const { data: episodesData } = await supabase
-      .from('episodes')
-      .select('*')
-      .in('season_id', seasonIds)
-      .eq('is_active', true)
-      .order('episode_number', { ascending: true })
-
-    const withEpisodes = seasonsData.map(season => ({
-      ...season,
-      episodes: (episodesData || []).filter(ep => ep.season_id === season.id),
-    }))
-
-    setSeasons(withEpisodes)
-    if (withEpisodes.length > 0) setExpandedSeason(withEpisodes[0].id)
   }
 
   const toggleWatchlist = async () => {
@@ -115,8 +64,6 @@ export default function SeriesDetailClient() {
       setIsInWatchlist(true)
     }
   }
-
-  const totalEpisodes = seasons.reduce((sum, s) => sum + (s.episodes?.length || 0), 0)
 
   if (loading) {
     return (
@@ -183,12 +130,8 @@ export default function SeriesDetailClient() {
                   <span>{show.views || 0} مشاهدة</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <ListVideo className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span>{totalEpisodes} حلقة</span>
-                </div>
-                <div className="flex items-center gap-1">
                   <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span>{seasons.length} مواسم</span>
+                  <span>{show.total_seasons || 0} مواسم</span>
                 </div>
               </div>
 
@@ -233,92 +176,6 @@ export default function SeriesDetailClient() {
           </div>
         </div>
       </section>
-
-      <div className="container mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6">المواسم والحلقات</h2>
-
-        {seasons.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
-            <ListVideo className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-            <p>لا توجد حلقات متاحة حالياً</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {seasons.map((season) => {
-              const isExpanded = expandedSeason === season.id
-              return (
-                <div key={season.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => setExpandedSeason(isExpanded ? null : season.id)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-gray-800 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <ChevronDown className={`w-5 h-5 transition ${isExpanded ? 'rotate-180' : ''}`} />
-                      <span className="font-bold text-lg">{season.title || `الموسم ${season.season_number}`}</span>
-                      <span className="text-sm text-gray-400">({season.episodes?.length || 0} حلقة)</span>
-                    </div>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="border-t border-gray-800">
-                      {season.episodes?.map((ep) => {
-                        const progress = episodeProgress[ep.id]
-                        const progressPercent = progress && progress.duration > 0
-                          ? Math.min(100, Math.round((progress.time / progress.duration) * 100))
-                          : 0
-
-                        return (
-                          <Link
-                            key={ep.id}
-                            href={`/watch/series/${show.id}?episode=${ep.id}`}
-                            className="flex items-center gap-4 p-4 hover:bg-gray-800/50 transition border-b border-gray-800/50 last:border-0"
-                          >
-                            <div className="text-gray-500 text-sm font-mono w-8 text-center shrink-0">
-                              {ep.episode_number}
-                            </div>
-                            <div className="relative w-28 h-16 rounded-lg overflow-hidden bg-gray-800 shrink-0">
-                              {ep.thumbnail ? (
-                                <img src={ep.thumbnail} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Play className="w-6 h-6 text-gray-600" />
-                                </div>
-                              )}
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition">
-                                <Play className="w-8 h-8 text-white" />
-                              </div>
-                              {progressPercent > 0 && (
-                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700">
-                                  <div className="h-full bg-red-600" style={{ width: `${progressPercent}%` }} />
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-sm truncate">{ep.title || `الحلقة ${ep.episode_number}`}</h4>
-                              <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                                {ep.duration > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {ep.duration} دقيقة
-                                  </span>
-                                )}
-                                {progressPercent > 0 && (
-                                  <span className="text-red-400">{progressPercent}% تم المشاهدة</span>
-                                )}
-                              </div>
-                            </div>
-                            <ArrowRight className="w-4 h-4 text-gray-500 shrink-0" />
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
     </div>
   )
 }
