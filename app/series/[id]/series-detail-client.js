@@ -182,7 +182,7 @@ export default function SeriesDetailClient() {
               </div>
 
               {show.description && (
-                <p className="text-gray-300 mb-6 max-w-2xl line-clamp-3 md:line-clamp-none">{show.description}</p>
+                <p className="text-gray-300 mb-6 max-w-2xl line-clamp-2">{show.description}</p>
               )}
 
               <div className="flex flex-wrap gap-3">
