@@ -135,7 +135,7 @@ export default function SeriesDetailClient() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <section className="relative min-h-[300px] overflow-hidden">
+      <section className="relative h-[60vh] min-h-[400px] max-h-[550px] md:h-[70vh] md:min-h-[450px] md:max-h-[600px] overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${show.banner || show.thumbnail})` }}
@@ -143,13 +143,13 @@ export default function SeriesDetailClient() {
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 pb-8 pt-20 px-4 md:container md:mx-auto">
-          <div className="flex flex-col md:flex-row items-start gap-6 md:gap-8">
+        <div className="absolute bottom-0 left-0 right-0 pb-6 pt-16 px-4 md:container md:mx-auto">
+          <div className="flex flex-col md:flex-row items-start gap-4 md:gap-6">
             <div className="hidden md:block shrink-0">
               <img
                 src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=400'}
                 alt={show.title}
-                className="w-48 h-72 object-cover rounded-xl shadow-2xl border border-gray-700"
+                className="w-40 h-56 object-cover rounded-xl shadow-2xl border border-gray-700"
               />
             </div>
 
@@ -181,10 +181,6 @@ export default function SeriesDetailClient() {
                 </div>
               </div>
 
-              {show.description && (
-                <p className="text-gray-300 mb-6 max-w-2xl line-clamp-2">{show.description}</p>
-              )}
-
               <div className="flex flex-wrap gap-3">
                 <Button
                   size="lg"
@@ -215,6 +211,12 @@ export default function SeriesDetailClient() {
           </div>
         </div>
       </section>
+
+      {show.description && (
+        <div className="container mx-auto px-4 py-6">
+          <p className="text-gray-300 max-w-3xl">{show.description}</p>
+        </div>
+      )}
 
       <div className="container mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-6">المواسم والحلقات</h2>
