@@ -154,10 +154,13 @@ export default function SeriesDetailClient() {
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {show.category && <Badge className="bg-red-600">{show.category}</Badge>}
                 {show.is_translated && <Badge className="bg-green-600">مترجم</Badge>}
                 {show.is_dubbed && <Badge className="bg-blue-600">مدبلج</Badge>}
                 {show.release_day && <Badge className="bg-purple-600">يعرض كل {show.release_day}</Badge>}
+                <Badge variant="outline">{seasons.length} مواسم</Badge>
+                <Badge variant="outline">{totalEpisodes} حلقة</Badge>
               </div>
 
               <h1 className="text-3xl md:text-5xl font-bold mb-3">{show.title}</h1>
@@ -170,14 +173,6 @@ export default function SeriesDetailClient() {
                 <div className="flex items-center gap-1">
                   <Eye className="w-4 h-4" />
                   <span>{show.views || 0} مشاهدة</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <ListVideo className="w-4 h-4" />
-                  <span>{totalEpisodes} حلقة</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  <span>{seasons.length} مواسم</span>
                 </div>
               </div>
 
