@@ -1568,14 +1568,14 @@ export default function AdminPanel() {
                         </div>
 
                         <div>
-                          <Label>رابط فيديو الإعلان (YouTube)</Label>
+                          <Label>رابط فيديو الإعلان (YouTube / .mp4)</Label>
                           <Input
                             value={seriesForm.trailer_url || ''}
                             onChange={(e) => setSeriesForm({ ...seriesForm, trailer_url: e.target.value })}
                             className="bg-black border-gray-700"
-                            placeholder="https://www.youtube.com/watch?v=..."
+                            placeholder="https://www.youtube.com/watch?v=... أو https://example.com/video.mp4"
                           />
-                          <p className="text-xs text-gray-500 mt-1">سيتم تشغيل الفيديو كخلفية بدون عرض شعار يوتيوب</p>
+                          <p className="text-xs text-gray-500 mt-1">يدعم روابط YouTube وروابط فيديو .mp4 مباشرة</p>
                         </div>
 
                         {seriesForm.trailer_url && (

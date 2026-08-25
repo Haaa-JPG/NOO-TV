@@ -23,6 +23,10 @@ function parseYouTubeId(url) {
   return null
 }
 
+function isMp4(url) {
+  return url && /\.mp4(\?|$)/i.test(url)
+}
+
 export default function SeriesDetailClient() {
   const params = useParams()
   const router = useRouter()
@@ -35,9 +39,10 @@ export default function SeriesDetailClient() {
   const timerRef = useRef(null)
 
   const youtubeId = show ? parseYouTubeId(show.trailer_url) : null
+  const isVideoMp4 = show ? isMp4(show.trailer_url) : false
   const startTime = show?.trailer_start_time || 0
   const endTime = show?.trailer_end_time || 0
-  const hasVideoRange = !!youtubeId && endTime > startTime
+  const hasVideoRange = (youtubeId || isVideoMp4) && endTime > startTime
 
   const restartVideo = useCallback(() => {
     setVideoKey(k => k + 1)
@@ -121,8 +126,6 @@ export default function SeriesDetailClient() {
   }
 
   const bgImage = show.banner || show.thumbnail
-  const youtubeIdVal = parseYouTubeId(show.trailer_url)
-  const useVideo = !!youtubeIdVal
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -138,12 +141,35 @@ export default function SeriesDetailClient() {
 
       <section className="relative w-full h-[60vh] min-h-[350px] sm:h-[65vh] sm:min-h-[400px] md:h-[70vh] md:min-h-[450px] lg:h-[75vh] lg:min-h-[500px] overflow-hidden mt-14">
         {/* Background: Video or Image */}
-        {useVideo ? (
+        {isVideoMp4 ? (
+          <div className="absolute inset-0 overflow-hidden bg-black">
+            <video
+              key={videoKey}
+              ref={(el) => {
+                if (el && startTime > 0) {
+                  el.currentTime = startTime
+                }
+              }}
+              src={show.trailer_url}
+              className="absolute top-1/2 left-1/2 min-w-full min-h-full w-auto h-auto -translate-x-1/2 -translate-y-1/2 object-cover"
+              autoPlay
+              muted
+              loop={false}
+              playsInline
+              onTimeUpdate={(e) => {
+                if (endTime > 0 && e.target.currentTime >= endTime) {
+                  e.target.currentTime = startTime
+                  e.target.play()
+                }
+              }}
+            />
+          </div>
+        ) : youtubeId ? (
           <div className="absolute inset-0 overflow-hidden bg-black">
             <div className="absolute top-1/2 left-1/2 w-[178%] h-[178%] -translate-x-1/2 -translate-y-1/2">
               <iframe
                 key={videoKey}
-                src={`https://www.youtube-nocookie.com/embed/${youtubeIdVal}?autoplay=1&mute=1&loop=0&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&disablekb=1&start=${startTime}&end=${endTime}`}
+                src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&loop=0&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&disablekb=1&start=${startTime}&end=${endTime}`}
                 className="w-full h-full"
                 allow="autoplay; encrypted-media"
                 allowFullScreen={false}
