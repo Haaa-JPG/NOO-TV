@@ -4,7 +4,7 @@ import WatchMovieClient from './movie-watch-client'
 export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }) {
-  const { id } = await params
+  const { id } = params
   const client = getDbClient()
   try {
     await client.connect()
@@ -48,7 +48,7 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function WatchMoviePage({ params }) {
-  const { id } = await params
+  const { id } = params
   const client = getDbClient()
   let movie = null
 

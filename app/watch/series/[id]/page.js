@@ -4,8 +4,8 @@ import WatchSeriesClient from './series-watch-client'
 export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params, searchParams }) {
-  const { id } = await params
-  const sp = await searchParams
+  const { id } = params
+  const sp = searchParams
   const client = getDbClient()
   try {
     await client.connect()
@@ -61,8 +61,8 @@ export async function generateMetadata({ params, searchParams }) {
 }
 
 export default async function WatchSeriesPage({ params, searchParams }) {
-  const { id } = await params
-  const sp = await searchParams
+  const { id } = params
+  const sp = searchParams
   const client = getDbClient()
   let series = null
   let seasons = []
