@@ -135,8 +135,8 @@ export default function SeriesDetailClient() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="fixed top-0 w-full bg-black/90 backdrop-blur z-50 border-b border-gray-800">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="fixed top-0 left-0 right-0 h-14 bg-black/90 backdrop-blur z-50 border-b border-gray-800">
+        <div className="container mx-auto px-4 h-full flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <ArrowRight className="w-5 h-5" />
             <span className="text-xl font-bold text-red-600">NOO TV</span>
@@ -145,60 +145,60 @@ export default function SeriesDetailClient() {
         </div>
       </header>
 
-      <section className="relative h-[50vh] min-h-[350px] max-h-[500px] md:h-[65vh] md:min-h-[450px] md:max-h-[600px] overflow-hidden">
+      <section className="relative h-[40vh] min-h-[280px] max-h-[420px] sm:h-[50vh] sm:min-h-[350px] sm:max-h-[500px] md:h-[55vh] md:min-h-[400px] md:max-h-[550px] lg:h-[60vh] lg:min-h-[450px] lg:max-h-[600px] overflow-hidden mt-14">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${show.banner || show.thumbnail})` }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 pb-8 pt-20 px-4 md:container md:mx-auto">
-          <div className="flex flex-col md:flex-row items-start gap-6 md:gap-8">
+        <div className="absolute bottom-0 left-0 right-0 pb-4 sm:pb-6 md:pb-8 px-4 sm:px-6 md:container md:mx-auto">
+          <div className="flex flex-col md:flex-row items-start gap-4 md:gap-6">
             <div className="hidden md:block shrink-0">
               <img
                 src={show.thumbnail || 'https://images.unsplash.com/photo-1574267432644-f00c7b5a3a1b?w=400'}
                 alt={show.title}
-                className="w-48 h-72 object-cover rounded-xl shadow-2xl border border-gray-700"
+                className="w-40 lg:w-48 h-60 lg:h-72 object-cover rounded-xl shadow-2xl border border-gray-700"
               />
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                {show.is_translated && <Badge className="bg-green-600">مترجم</Badge>}
-                {show.is_dubbed && <Badge className="bg-blue-600">مدبلج</Badge>}
-                {show.release_day && <Badge className="bg-purple-600">يعرض كل {show.release_day}</Badge>}
+              <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                {show.is_translated && <Badge className="bg-green-600 text-[10px] sm:text-xs">مترجم</Badge>}
+                {show.is_dubbed && <Badge className="bg-blue-600 text-[10px] sm:text-xs">مدبلج</Badge>}
+                {show.release_day && <Badge className="bg-purple-600 text-[10px] sm:text-xs">يعرض كل {show.release_day}</Badge>}
               </div>
 
-              <h1 className="text-3xl md:text-5xl font-bold mb-3">{show.title}</h1>
+              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2 md:mb-3">{show.title}</h1>
 
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300 mb-4">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm text-gray-300 mb-2 sm:mb-3 md:mb-4">
                 <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
+                  <Star className="w-3 h-3 sm:w-4 sm:h-4 fill-yellow-500 text-yellow-500" />
                   <span>{show.average_rating || '0.0'}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Eye className="w-4 h-4" />
+                  <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span>{show.views || 0} مشاهدة</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <ListVideo className="w-4 h-4" />
+                  <ListVideo className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span>{totalEpisodes} حلقة</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span>{seasons.length} مواسم</span>
                 </div>
               </div>
 
               {show.description && (
-                <p className="text-gray-300 mb-6 max-w-2xl line-clamp-3 md:line-clamp-none">{show.description}</p>
+                <p className="text-gray-300 mb-3 sm:mb-4 md:mb-6 text-xs sm:text-sm md:text-base max-w-2xl line-clamp-2 sm:line-clamp-3">{show.description}</p>
               )}
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2 sm:gap-3">
                 <Button
-                  size="lg"
-                  className="bg-red-600 hover:bg-red-700"
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm h-8 sm:h-10 md:h-11"
                   onClick={() => {
                     const firstEp = seasons[0]?.episodes?.[0]
                     if (firstEp) {
@@ -208,13 +208,13 @@ export default function SeriesDetailClient() {
                     }
                   }}
                 >
-                  <Play className="w-5 h-5 ml-2" />
+                  <Play className="w-4 h-4 ml-1 sm:ml-2" />
                   ابدأ المشاهدة
                 </Button>
                 <Button
-                  size="lg"
+                  size="sm"
                   variant="outline"
-                  className={`border-gray-600 ${isInWatchlist ? 'bg-red-600/20 border-red-600 text-red-400' : ''}`}
+                  className={`border-gray-600 text-xs sm:text-sm h-8 sm:h-10 md:h-11 ${isInWatchlist ? 'bg-red-600/20 border-red-600 text-red-400' : ''}`}
                   onClick={toggleWatchlist}
                 >
                   <Heart className={`w-5 h-5 ml-2 ${isInWatchlist ? 'fill-red-500' : ''}`} />
