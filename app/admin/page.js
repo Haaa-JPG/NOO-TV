@@ -135,16 +135,14 @@ const emptySeriesForm = () => ({
 })
 
 const DAYS_OF_WEEK = [
-  { value: 'السبت', label: 'السبت' },
   { value: 'الأحد', label: 'الأحد' },
   { value: 'الاثنين', label: 'الاثنين' },
   { value: 'الثلاثاء', label: 'الثلاثاء' },
   { value: 'الأربعاء', label: 'الأربعاء' },
   { value: 'الخميس', label: 'الخميس' },
-  { value: 'الجمعة', label: 'الجمعة' },
 ]
 
-const DAY_ORDER = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+const DAY_ORDER = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
 
 const emptyCategoryForm = () => ({
   name: '',
