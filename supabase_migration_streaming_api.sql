@@ -3,12 +3,11 @@
 -- Execute this SQL in Supabase SQL Editor
 -- ============================================================
 
--- 1. Streaming sources table
+-- 1. Streaming sources table (NO api_key column — use STREAMING_API_KEY env var)
 CREATE TABLE IF NOT EXISTS public.streaming_sources (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   api_base_url TEXT NOT NULL,
-  api_key TEXT,
   source_type TEXT DEFAULT 'generic' CHECK (source_type IN ('generic', '3isk', 'qrmzi', 'anaplayer', 'custom')),
   is_active BOOLEAN DEFAULT TRUE,
   priority INTEGER DEFAULT 0,
@@ -120,5 +119,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 9. Drop api_key column if it exists from a previous migration
+DO $$ BEGIN
+  ALTER TABLE public.streaming_sources DROP COLUMN IF EXISTS api_key;
+EXCEPTION WHEN undefined_column THEN NULL;
+END $$;
+
 -- Done
-SELECT '✅ Migration v5 complete! Streaming API integration tables created.' as message;
+SELECT '✅ Migration v5 complete! Streaming API integration tables created (no api_key column).' as message;

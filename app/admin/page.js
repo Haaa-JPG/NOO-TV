@@ -235,11 +235,12 @@ export default function AdminPanel() {
   // Streaming sources
   const [streamingSources, setStreamingSources] = useState([])
   const [showSourceForm, setShowSourceForm] = useState(false)
-  const [sourceForm, setSourceForm] = useState({ name: '', api_base_url: '', api_key: '', source_type: 'generic', priority: 0 })
+  const [sourceForm, setSourceForm] = useState({ name: '', api_base_url: '', source_type: 'generic', priority: 0 })
   const [editingSource, setEditingSource] = useState(null)
   const [sourceJobs, setSourceJobs] = useState([])
   const [sourceHealth, setSourceHealth] = useState({})
   const [showSourceJobs, setShowSourceJobs] = useState(null)
+  const [checkingHealth, setCheckingHealth] = useState({})
 
   useEffect(() => {
     checkAuth()
@@ -369,7 +370,9 @@ export default function AdminPanel() {
         throw new Error('الاسم ورابط API مطلوبان')
       }
       const payload = {
-        ...sourceForm,
+        name: sourceForm.name,
+        api_base_url: sourceForm.api_base_url,
+        source_type: sourceForm.source_type,
         priority: parseInt(sourceForm.priority) || 0,
       }
       if (editingSource) {
@@ -393,7 +396,7 @@ export default function AdminPanel() {
       }
       setShowSourceForm(false)
       setEditingSource(null)
-      setSourceForm({ name: '', api_base_url: '', api_key: '', source_type: 'generic', priority: 0 })
+      setSourceForm({ name: '', api_base_url: '', source_type: 'generic', priority: 0 })
       loadStreamingSources()
     } catch (err) {
       toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
@@ -430,6 +433,8 @@ export default function AdminPanel() {
   }
 
   const checkSourceHealth = async (sourceId) => {
+    if (checkingHealth[sourceId]) return
+    setCheckingHealth(prev => ({ ...prev, [sourceId]: true }))
     setSourceHealth(prev => ({ ...prev, [sourceId]: 'checking' }))
     try {
       const res = await fetch(`/api/streaming/health?source_id=${sourceId}`)
@@ -437,9 +442,11 @@ export default function AdminPanel() {
       setSourceHealth(prev => ({ ...prev, [sourceId]: data.status || 'down' }))
       loadStreamingSources()
       toast({ title: data.status === 'healthy' ? 'المصدر يعمل بشكل طبيعي' : 'المصدر يواجه مشكلة' })
-    } catch (err) {
+    } catch {
       setSourceHealth(prev => ({ ...prev, [sourceId]: 'down' }))
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+      toast({ title: 'خطأ', description: 'تعذر فحص الحالة', variant: 'destructive' })
+    } finally {
+      setCheckingHealth(prev => ({ ...prev, [sourceId]: false }))
     }
   }
 
@@ -2449,7 +2456,7 @@ export default function AdminPanel() {
                 onClick={() => {
                   setShowSourceForm(true)
                   setEditingSource(null)
-                  setSourceForm({ name: '', api_base_url: '', api_key: '', source_type: 'generic', priority: 0 })
+                  setSourceForm({ name: '', api_base_url: '', source_type: 'generic', priority: 0 })
                 }}
                 className="bg-red-600 hover:bg-red-700"
               >
@@ -2472,10 +2479,6 @@ export default function AdminPanel() {
                       <div>
                         <Label>رابط API</Label>
                         <Input value={sourceForm.api_base_url} onChange={e => setSourceForm({ ...sourceForm, api_base_url: e.target.value })} placeholder="https://api.example.com" className="bg-gray-800 border-gray-700" />
-                      </div>
-                      <div>
-                        <Label>مفتاح API (اختياري)</Label>
-                        <Input value={sourceForm.api_key} onChange={e => setSourceForm({ ...sourceForm, api_key: e.target.value })} type="password" placeholder="Bearer token" className="bg-gray-800 border-gray-700" />
                       </div>
                       <div>
                         <Label>نوع المصدر</Label>
@@ -2534,8 +2537,8 @@ export default function AdminPanel() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => checkSourceHealth(source.id)} title="فحص الحالة">
-                          <Activity className="w-4 h-4" />
+                        <Button size="sm" variant="ghost" onClick={() => checkSourceHealth(source.id)} disabled={checkingHealth[source.id]} title="فحص الحالة">
+                          {checkingHealth[source.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => loadSourceJobs(source.id)} title="المهام">
                           <RefreshCw className="w-4 h-4" />
@@ -2545,7 +2548,7 @@ export default function AdminPanel() {
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => {
                           setEditingSource(source.id)
-                          setSourceForm({ name: source.name, api_base_url: source.api_base_url, api_key: source.api_key || '', source_type: source.source_type, priority: source.priority })
+                          setSourceForm({ name: source.name, api_base_url: source.api_base_url, source_type: source.source_type, priority: source.priority })
                           setShowSourceForm(true)
                         }}>
                           <Edit className="w-4 h-4" />
