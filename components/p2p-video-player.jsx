@@ -1,42 +1,6 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import CustomControls from './custom-controls'
-
-function LongPressFF({ videoRef }) {
-  const [ff, setFf] = useState(false)
-  const timer = useRef(null)
-  const active = useRef(false)
-
-  const start = useCallback((e) => {
-    if (e.target.closest('button') || e.target.closest('input')) return
-    active.current = false
-    timer.current = setTimeout(() => {
-      active.current = true
-      setFf(true)
-      if (videoRef?.current) videoRef.current.playbackRate = 2
-    }, 500)
-  }, [videoRef])
-
-  const stop = useCallback(() => {
-    clearTimeout(timer.current)
-    if (active.current) {
-      setFf(false)
-      if (videoRef?.current) videoRef.current.playbackRate = 1
-    }
-  }, [videoRef])
-
-  return (
-    <div className="relative w-full h-full" onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={start} onTouchEnd={stop} onTouchCancel={stop}>
-      {ff && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-50 pointer-events-none flex items-center gap-1">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
-          2x
-        </div>
-      )}
-    </div>
-  )
-}
 
 const TRACKERS = [
   'wss://tracker.openwebtorrent.com',
@@ -57,6 +21,8 @@ function P2PVideoPlayer({
   const p2pActiveRef = useRef(false)
   const onProgressRef = useRef(onProgress)
   const initialTimeRef = useRef(initialTime)
+  const [speed, setSpeed] = useState(1)
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false)
 
   onProgressRef.current = onProgress
   initialTimeRef.current = initialTime
@@ -189,16 +155,40 @@ function P2PVideoPlayer({
 
   // Clean render - NO P2P UI AT ALL
   return (
-    <div className="relative w-full h-full">
+    <div className="absolute inset-0 w-full h-full bg-black">
       <video
         ref={videoRef}
+        controls
         autoPlay
         playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
+        className="absolute inset-0 w-full h-full object-contain"
         title={title}
       />
-      <CustomControls videoRef={videoRef} />
-      <LongPressFF videoRef={videoRef} />
+      <div className="absolute top-3 left-3 z-10">
+        <button
+          onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+          className="bg-black/70 hover:bg-black/90 text-white text-xs px-2.5 py-1.5 rounded-lg backdrop-blur-sm border border-white/20 transition"
+        >
+          {speed}x
+        </button>
+        {showSpeedMenu && (
+          <div className="absolute top-full left-0 mt-1 bg-black/90 rounded-lg border border-white/20 overflow-hidden backdrop-blur-sm">
+            {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
+              <button
+                key={s}
+                onClick={() => {
+                  setSpeed(s)
+                  if (videoRef.current) videoRef.current.playbackRate = s
+                  setShowSpeedMenu(false)
+                }}
+                className={`block w-full text-right px-4 py-1.5 text-xs hover:bg-white/20 transition ${speed === s ? 'text-red-500 font-bold' : 'text-white'}`}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
