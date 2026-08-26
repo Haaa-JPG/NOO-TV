@@ -2,6 +2,54 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import P2PVideoPlayer from './p2p-video-player'
 
+function LongPressFastForward({ children, videoRef }) {
+  const [fastForward, setFastForward] = useState(false)
+  const longPressTimer = useRef(null)
+  const isLongPress = useRef(false)
+
+  const startLongPress = useCallback((e) => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return
+    isLongPress.current = false
+    longPressTimer.current = setTimeout(() => {
+      isLongPress.current = true
+      setFastForward(true)
+      if (videoRef?.current) {
+        videoRef.current.playbackRate = 2
+      }
+    }, 500)
+  }, [videoRef])
+
+  const endLongPress = useCallback(() => {
+    clearTimeout(longPressTimer.current)
+    if (isLongPress.current) {
+      setFastForward(false)
+      if (videoRef?.current) {
+        videoRef.current.playbackRate = 1
+      }
+    }
+  }, [videoRef])
+
+  return (
+    <div
+      className="relative w-full h-full"
+      onMouseDown={startLongPress}
+      onMouseUp={endLongPress}
+      onMouseLeave={endLongPress}
+      onTouchStart={startLongPress}
+      onTouchEnd={endLongPress}
+      onTouchCancel={endLongPress}
+    >
+      {children}
+      {fastForward && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-50 pointer-events-none flex items-center gap-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+          2x
+        </div>
+      )}
+    </div>
+  )
+}
+
 const EXTRACT_API = process.env.NEXT_PUBLIC_EXTRACT_URL || ''
 
 const SOURCE_PATTERNS = [
@@ -242,14 +290,16 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <video
-      ref={videoRef}
-      controls
-      autoPlay
-      playsInline
-      className="absolute inset-0 w-full h-full object-contain bg-black"
-      title={title}
-    />
+    <LongPressFastForward videoRef={videoRef}>
+      <video
+        ref={videoRef}
+        controls
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        title={title}
+      />
+    </LongPressFastForward>
   )
 }
 
@@ -430,15 +480,17 @@ function DirectVideo({ src, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <video
-      ref={videoRef}
-      src={src}
-      controls
-      autoPlay
-      playsInline
-      className="absolute inset-0 w-full h-full object-contain bg-black"
-      title={title}
-    />
+    <LongPressFastForward videoRef={videoRef}>
+      <video
+        ref={videoRef}
+        src={src}
+        controls
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        title={title}
+      />
+    </LongPressFastForward>
   )
 }
 

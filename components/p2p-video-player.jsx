@@ -2,6 +2,41 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 
+function LongPressFF({ videoRef }) {
+  const [ff, setFf] = useState(false)
+  const timer = useRef(null)
+  const active = useRef(false)
+
+  const start = useCallback((e) => {
+    if (e.target.closest('button') || e.target.closest('input')) return
+    active.current = false
+    timer.current = setTimeout(() => {
+      active.current = true
+      setFf(true)
+      if (videoRef?.current) videoRef.current.playbackRate = 2
+    }, 500)
+  }, [videoRef])
+
+  const stop = useCallback(() => {
+    clearTimeout(timer.current)
+    if (active.current) {
+      setFf(false)
+      if (videoRef?.current) videoRef.current.playbackRate = 1
+    }
+  }, [videoRef])
+
+  return (
+    <div className="relative w-full h-full" onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={start} onTouchEnd={stop} onTouchCancel={stop}>
+      {ff && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-50 pointer-events-none flex items-center gap-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+          2x
+        </div>
+      )}
+    </div>
+  )
+}
+
 const TRACKERS = [
   'wss://tracker.openwebtorrent.com',
   'wss://tracker.btorrent.xyz',
@@ -153,14 +188,17 @@ function P2PVideoPlayer({
 
   // Clean render - NO P2P UI AT ALL
   return (
-    <video
-      ref={videoRef}
-      controls
-      autoPlay
-      playsInline
-      className="absolute inset-0 w-full h-full object-contain bg-black"
-      title={title}
-    />
+    <div className="relative w-full h-full">
+      <video
+        ref={videoRef}
+        controls
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain bg-black"
+        title={title}
+      />
+      <LongPressFF videoRef={videoRef} />
+    </div>
   )
 }
 
