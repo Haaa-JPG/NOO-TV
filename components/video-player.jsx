@@ -162,8 +162,6 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
   const initialTimeRef = useRef(initialTime)
-  const [speed, setSpeed] = useState(1)
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false)
 
   initialTimeRef.current = initialTime
 
@@ -244,41 +242,14 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   }, [onProgress])
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-black">
-      <video
-        ref={videoRef}
-        controls
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain"
-        title={title}
-      />
-      <div className="absolute top-3 left-3 z-10">
-        <button
-          onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-          className="bg-black/70 hover:bg-black/90 text-white text-xs px-2.5 py-1.5 rounded-lg backdrop-blur-sm border border-white/20 transition"
-        >
-          {speed}x
-        </button>
-        {showSpeedMenu && (
-          <div className="absolute top-full left-0 mt-1 bg-black/90 rounded-lg border border-white/20 overflow-hidden backdrop-blur-sm">
-            {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map(s => (
-              <button
-                key={s}
-                onClick={() => {
-                  setSpeed(s)
-                  if (videoRef.current) videoRef.current.playbackRate = s
-                  setShowSpeedMenu(false)
-                }}
-                className={`block w-full text-right px-4 py-1.5 text-xs hover:bg-white/20 transition ${speed === s ? 'text-red-500 font-bold' : 'text-white'}`}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <video
+      ref={videoRef}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 w-full h-full object-contain bg-black"
+      title={title}
+    />
   )
 }
 
