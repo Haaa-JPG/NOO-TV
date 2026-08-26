@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
+import CustomControls from './custom-controls'
 
 function LongPressFF({ videoRef }) {
   const [ff, setFf] = useState(false)
@@ -191,12 +192,12 @@ function P2PVideoPlayer({
     <div className="relative w-full h-full">
       <video
         ref={videoRef}
-        controls
         autoPlay
         playsInline
         className="absolute inset-0 w-full h-full object-contain bg-black"
         title={title}
       />
+      <CustomControls videoRef={videoRef} />
       <LongPressFF videoRef={videoRef} />
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useEffect, useState, useCallback } from 'react'
 import P2PVideoPlayer from './p2p-video-player'
+import CustomControls from './custom-controls'
 
 function LongPressFastForward({ children, videoRef }) {
   const [fastForward, setFastForward] = useState(false)
@@ -291,14 +292,16 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
 
   return (
     <LongPressFastForward videoRef={videoRef}>
-      <video
-        ref={videoRef}
-        controls
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
+      <div className="relative w-full h-full">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="absolute inset-0 w-full h-full object-contain bg-black"
+          title={title}
+        />
+        <CustomControls videoRef={videoRef} />
+      </div>
     </LongPressFastForward>
   )
 }
@@ -481,15 +484,17 @@ function DirectVideo({ src, title, initialTime = 0, onProgress }) {
 
   return (
     <LongPressFastForward videoRef={videoRef}>
-      <video
-        ref={videoRef}
-        src={src}
-        controls
-        autoPlay
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-black"
-        title={title}
-      />
+      <div className="relative w-full h-full">
+        <video
+          ref={videoRef}
+          src={src}
+          autoPlay
+          playsInline
+          className="absolute inset-0 w-full h-full object-contain bg-black"
+          title={title}
+        />
+        <CustomControls videoRef={videoRef} />
+      </div>
     </LongPressFastForward>
   )
 }
