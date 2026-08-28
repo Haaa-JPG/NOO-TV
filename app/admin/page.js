@@ -246,8 +246,6 @@ export default function AdminPanel() {
     checkAuth()
   }, [])
 
-  const [sessionToken, setSessionToken] = useState(null)
-
   const checkAuth = async () => {
     const { user } = await getCurrentUser()
     if (!user) {
@@ -272,16 +270,12 @@ export default function AdminPanel() {
       return
     }
 
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData?.session?.access_token || null
-    setSessionToken(token)
-
     setUser(user)
-    loadData(token)
+    loadData()
     setLoading(false)
   }
 
-  const loadData = async (token) => {
+  const loadData = async () => {
     // Load movies
     const { data: moviesData } = await supabase
       .from('movies')
@@ -349,7 +343,7 @@ export default function AdminPanel() {
     if (introData?.setting_value) setIntroVideoUrl(introData.setting_value)
 
     // Load streaming sources
-    loadStreamingSources(token)
+    loadStreamingSources()
   }
 
   const loadHeroItems = async () => {
@@ -359,12 +353,23 @@ export default function AdminPanel() {
 
   // ============ STREAMING SOURCES ============
 
-  const loadStreamingSources = async (token) => {
+  const getAuthToken = async () => {
     try {
-      const headers = {}
-      const t = token || sessionToken
-      if (t) headers['Authorization'] = `Bearer ${t}`
-      const res = await fetch('/api/streaming/sources', { headers })
+      const { data } = await supabase.auth.getSession()
+      return data?.session?.access_token || null
+    } catch { return null }
+  }
+
+  const authFetch = async (url, options = {}) => {
+    const token = await getAuthToken()
+    const headers = { ...options.headers }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return fetch(url, { ...options, headers })
+  }
+
+  const loadStreamingSources = async () => {
+    try {
+      const res = await authFetch('/api/streaming/sources')
       const data = await res.json()
       if (data.sources) setStreamingSources(data.sources)
     } catch (err) {
@@ -385,18 +390,18 @@ export default function AdminPanel() {
         priority: parseInt(sourceForm.priority) || 0,
       }
       if (editingSource) {
-        const res = await fetch('/api/streaming/sources', {
+        const res = await authFetch('/api/streaming/sources', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingSource, ...payload }),
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
         toast({ title: 'تم التحديث' })
       } else {
-        const res = await fetch('/api/streaming/sources', {
+        const res = await authFetch('/api/streaming/sources', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
         const data = await res.json()
@@ -415,9 +420,8 @@ export default function AdminPanel() {
   const handleDeleteSource = async (id) => {
     if (!confirm('هل أنت متأكد من حذف هذا المصدر؟')) return
     try {
-      const res = await fetch(`/api/streaming/sources?id=${id}`, {
+      const res = await authFetch(`/api/streaming/sources?id=${id}`, {
         method: 'DELETE',
-        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -449,9 +453,7 @@ export default function AdminPanel() {
     setCheckingHealth(prev => ({ ...prev, [sourceId]: true }))
     setSourceHealth(prev => ({ ...prev, [sourceId]: 'checking' }))
     try {
-      const res = await fetch(`/api/streaming/health?source_id=${sourceId}`, {
-        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
-      })
+      const res = await authFetch(`/api/streaming/health?source_id=${sourceId}`)
       const data = await res.json()
       setSourceHealth(prev => ({ ...prev, [sourceId]: data.status || 'down' }))
       loadStreamingSources()
@@ -467,9 +469,7 @@ export default function AdminPanel() {
   const loadSourceJobs = async (sourceId) => {
     setShowSourceJobs(sourceId)
     try {
-      const res = await fetch(`/api/streaming/jobs?source_id=${sourceId}&limit=20`, {
-        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
-      })
+      const res = await authFetch(`/api/streaming/jobs?source_id=${sourceId}&limit=20`)
       const data = await res.json()
       if (data.jobs) setSourceJobs(data.jobs)
     } catch (err) {
@@ -932,9 +932,9 @@ export default function AdminPanel() {
   const handleDeleteUser = async (userId) => {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم نهائياً من كل شيء؟')) return
     try {
-      const res = await fetch('/api/admin-users', {
+      const res = await authFetch('/api/admin-users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', userId }),
       })
       const data = await res.json()
@@ -952,9 +952,9 @@ export default function AdminPanel() {
     try {
       if (!newUserForm.email || !newUserForm.password) throw new Error('البريد وكلمة المرور مطلوبان')
       if (newUserForm.password.length < 6) throw new Error('كلمة المرور 6 أحرف على الأقل')
-      const res = await fetch('/api/admin-users', {
+      const res = await authFetch('/api/admin-users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create', email: newUserForm.email, password: newUserForm.password, displayName: newUserForm.displayName }),
       })
       const data = await res.json()
@@ -1070,7 +1070,7 @@ export default function AdminPanel() {
             <TabsTrigger value="hero" className="data-[state=active]:bg-red-600">
               <Eye className="w-4 h-4 ml-2" /> البانر الرئيسي
             </TabsTrigger>
-            <TabsTrigger value="streaming" className="data-[state=active]:bg-red-600" onClick={() => loadStreamingSources()}>
+            <TabsTrigger value="streaming" className="data-[state=active]:bg-red-600" onClick={loadStreamingSources}>
               <Server className="w-4 h-4 ml-2" /> مصادر البث
             </TabsTrigger>
           </TabsList>
