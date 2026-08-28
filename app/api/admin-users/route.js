@@ -89,10 +89,23 @@ async function getAuthUser(request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
-    const cookieHeader = request.headers.get('cookie') || ''
-    const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/)
-    if (!tokenMatch) return null
-    const { data, error } = await supabaseAdmin.auth.getUser(decodeURIComponent(tokenMatch[1]))
+
+    let token = null
+
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim()
+    }
+
+    if (!token) {
+      const cookieHeader = request.headers.get('cookie') || ''
+      const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/)
+      if (tokenMatch) token = decodeURIComponent(tokenMatch[1])
+    }
+
+    if (!token) return null
+
+    const { data, error } = await supabaseAdmin.auth.getUser(token)
     if (error || !data?.user) return null
     return data.user
   } catch {

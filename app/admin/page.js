@@ -246,6 +246,8 @@ export default function AdminPanel() {
     checkAuth()
   }, [])
 
+  const [sessionToken, setSessionToken] = useState(null)
+
   const checkAuth = async () => {
     const { user } = await getCurrentUser()
     if (!user) {
@@ -269,6 +271,10 @@ export default function AdminPanel() {
       router.push('/')
       return
     }
+
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData?.session?.access_token || null
+    setSessionToken(token)
 
     setUser(user)
     loadData()
@@ -355,7 +361,9 @@ export default function AdminPanel() {
 
   const loadStreamingSources = async () => {
     try {
-      const res = await fetch('/api/streaming/sources')
+      const headers = {}
+      if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`
+      const res = await fetch('/api/streaming/sources', { headers })
       const data = await res.json()
       if (data.sources) setStreamingSources(data.sources)
     } catch (err) {
@@ -378,7 +386,7 @@ export default function AdminPanel() {
       if (editingSource) {
         const res = await fetch('/api/streaming/sources', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
           body: JSON.stringify({ id: editingSource, ...payload }),
         })
         const data = await res.json()
@@ -387,7 +395,7 @@ export default function AdminPanel() {
       } else {
         const res = await fetch('/api/streaming/sources', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
           body: JSON.stringify(payload),
         })
         const data = await res.json()
@@ -406,7 +414,10 @@ export default function AdminPanel() {
   const handleDeleteSource = async (id) => {
     if (!confirm('هل أنت متأكد من حذف هذا المصدر؟')) return
     try {
-      const res = await fetch(`/api/streaming/sources?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/streaming/sources?id=${id}`, {
+        method: 'DELETE',
+        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+      })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       toast({ title: 'تم الحذف' })
@@ -437,7 +448,9 @@ export default function AdminPanel() {
     setCheckingHealth(prev => ({ ...prev, [sourceId]: true }))
     setSourceHealth(prev => ({ ...prev, [sourceId]: 'checking' }))
     try {
-      const res = await fetch(`/api/streaming/health?source_id=${sourceId}`)
+      const res = await fetch(`/api/streaming/health?source_id=${sourceId}`, {
+        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+      })
       const data = await res.json()
       setSourceHealth(prev => ({ ...prev, [sourceId]: data.status || 'down' }))
       loadStreamingSources()
@@ -453,7 +466,9 @@ export default function AdminPanel() {
   const loadSourceJobs = async (sourceId) => {
     setShowSourceJobs(sourceId)
     try {
-      const res = await fetch(`/api/streaming/jobs?source_id=${sourceId}&limit=20`)
+      const res = await fetch(`/api/streaming/jobs?source_id=${sourceId}&limit=20`, {
+        headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {},
+      })
       const data = await res.json()
       if (data.jobs) setSourceJobs(data.jobs)
     } catch (err) {
@@ -918,7 +933,7 @@ export default function AdminPanel() {
     try {
       const res = await fetch('/api/admin-users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
         body: JSON.stringify({ action: 'delete', userId }),
       })
       const data = await res.json()
@@ -938,7 +953,7 @@ export default function AdminPanel() {
       if (newUserForm.password.length < 6) throw new Error('كلمة المرور 6 أحرف على الأقل')
       const res = await fetch('/api/admin-users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
         body: JSON.stringify({ action: 'create', email: newUserForm.email, password: newUserForm.password, displayName: newUserForm.displayName }),
       })
       const data = await res.json()
