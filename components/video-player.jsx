@@ -253,7 +253,7 @@ function HlsVideo({ url, title, initialTime = 0, onProgress }) {
   )
 }
 
-function SourceExtracting({ url, onExtracted, onError }) {
+function SourceExtracting({ url, onExtracted, onError, contentId, contentType }) {
   const [status, setStatus] = useState('extracting')
   const [error, setError] = useState(null)
   const [progress, setProgress] = useState('جاري استخراج رابط الفيديو...')
@@ -272,37 +272,49 @@ function SourceExtracting({ url, onExtracted, onError }) {
     let cancelled = false
 
     async function doExtract() {
-      if (!EXTRACT_API) {
-        if (mountedRef.current && !cancelled) {
-          setError('Extract API not configured')
-          setStatus('error')
-          onError?.('Extract API not configured')
-        }
-        return
-      }
-
       if (mountedRef.current && !cancelled) {
         setStatus('extracting')
         setProgress('جاري استخراج رابط الفيديو...')
       }
 
       try {
-        const encodedUrl = encodeURIComponent(url)
-        const res = await fetch(`${EXTRACT_API}/api/extract?url=${encodedUrl}`, {
-          signal: AbortSignal.timeout(90000),
-        })
-        const data = await res.json()
+        let m3u8 = null
+
+        // Try streaming API first via NOO TV proxy
+        if (contentId && contentType) {
+          try {
+            const proxyRes = await fetch(`/api/streaming/playback?content_id=${encodeURIComponent(contentId)}&content_type=${contentType}`, {
+              signal: AbortSignal.timeout(120000),
+            })
+            const proxyData = await proxyRes.json()
+            if (proxyRes.ok && proxyData.url) {
+              m3u8 = proxyData.url
+            }
+          } catch {}
+        }
+
+        // Fallback to old extract API
+        if (!m3u8 && EXTRACT_API) {
+          try {
+            const encodedUrl = encodeURIComponent(url)
+            const res = await fetch(`${EXTRACT_API}/api/extract?url=${encodedUrl}`, {
+              signal: AbortSignal.timeout(90000),
+            })
+            const data = await res.json()
+            if (data.m3u8) m3u8 = data.m3u8
+          } catch {}
+        }
 
         if (cancelled) return
 
-        if (data.m3u8) {
+        if (m3u8) {
           if (mountedRef.current) {
             setStatus('success')
             setProgress('تم الاستخراج بنجاح!')
           }
-          onExtracted?.(data.m3u8)
+          onExtracted?.(m3u8)
         } else {
-          throw new Error(data.error || 'Extraction failed')
+          throw new Error('Extraction failed')
         }
       } catch (err) {
         if (cancelled) return
@@ -321,7 +333,7 @@ function SourceExtracting({ url, onExtracted, onError }) {
     doExtract()
 
     return () => { cancelled = true }
-  }, [url])
+  }, [url, contentId, contentType])
 
   const retry = useCallback(() => {
     extractionRef.current = false
@@ -522,6 +534,8 @@ export default function VideoPlayer({ url, activeStreamUrl, title = '', contentI
         url={resolvedUrl}
         onExtracted={handleExtracted}
         onError={() => {}}
+        contentId={contentId}
+        contentType={contentType}
       />
     )
   }
