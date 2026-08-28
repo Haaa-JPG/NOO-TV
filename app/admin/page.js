@@ -277,11 +277,11 @@ export default function AdminPanel() {
     setSessionToken(token)
 
     setUser(user)
-    loadData()
+    loadData(token)
     setLoading(false)
   }
 
-  const loadData = async () => {
+  const loadData = async (token) => {
     // Load movies
     const { data: moviesData } = await supabase
       .from('movies')
@@ -349,7 +349,7 @@ export default function AdminPanel() {
     if (introData?.setting_value) setIntroVideoUrl(introData.setting_value)
 
     // Load streaming sources
-    loadStreamingSources()
+    loadStreamingSources(token)
   }
 
   const loadHeroItems = async () => {
@@ -359,10 +359,11 @@ export default function AdminPanel() {
 
   // ============ STREAMING SOURCES ============
 
-  const loadStreamingSources = async () => {
+  const loadStreamingSources = async (token) => {
     try {
       const headers = {}
-      if (sessionToken) headers['Authorization'] = `Bearer ${sessionToken}`
+      const t = token || sessionToken
+      if (t) headers['Authorization'] = `Bearer ${t}`
       const res = await fetch('/api/streaming/sources', { headers })
       const data = await res.json()
       if (data.sources) setStreamingSources(data.sources)
@@ -1069,7 +1070,7 @@ export default function AdminPanel() {
             <TabsTrigger value="hero" className="data-[state=active]:bg-red-600">
               <Eye className="w-4 h-4 ml-2" /> البانر الرئيسي
             </TabsTrigger>
-            <TabsTrigger value="streaming" className="data-[state=active]:bg-red-600" onClick={loadStreamingSources}>
+            <TabsTrigger value="streaming" className="data-[state=active]:bg-red-600" onClick={() => loadStreamingSources()}>
               <Server className="w-4 h-4 ml-2" /> مصادر البث
             </TabsTrigger>
           </TabsList>
