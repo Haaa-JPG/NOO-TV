@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, getCurrentUser, signOut } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -169,6 +169,7 @@ export default function AdminPanel() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('movies')
+  const authTokenRef = useRef(null)
 
   // Movies
   const [movies, setMovies] = useState([])
@@ -270,6 +271,12 @@ export default function AdminPanel() {
       return
     }
 
+    // Store auth token for API calls
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (sessionData?.session?.access_token) {
+      authTokenRef.current = sessionData.session.access_token
+    }
+
     setUser(user)
     loadData()
     setLoading(false)
@@ -354,9 +361,12 @@ export default function AdminPanel() {
   // ============ STREAMING SOURCES ============
 
   const getAuthToken = async () => {
+    if (authTokenRef.current) return authTokenRef.current
     try {
       const { data } = await supabase.auth.getSession()
-      return data?.session?.access_token || null
+      const token = data?.session?.access_token || null
+      authTokenRef.current = token
+      return token
     } catch { return null }
   }
 
