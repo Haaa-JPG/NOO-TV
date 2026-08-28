@@ -2,6 +2,34 @@ import { NextResponse } from 'next/server'
 import { getDbClient } from '@/lib/db'
 import { checkRateLimit } from '@/lib/rate-limit'
 
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+  } catch { return null }
+}
+
+async function getAuthUser(request) {
+  try {
+    let token = null
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim()
+    }
+    if (!token) {
+      const cookieHeader = request.headers.get('cookie') || ''
+      const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/)
+      if (tokenMatch) token = decodeURIComponent(tokenMatch[1])
+    }
+    if (!token) return null
+    const payload = decodeJwtPayload(token)
+    if (!payload || !payload.sub) return null
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+    return { id: payload.sub, email: payload.email || '' }
+  } catch { return null }
+}
+
 export async function POST(request) {
   let client
   try {
@@ -15,26 +43,13 @@ export async function POST(request) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
 
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
-
-    const { data: profile } = await supabaseAdmin
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (!profile || profile.role !== 'admin') {
+    client = getDbClient()
+    const { rows } = await client.query('SELECT role FROM public.users WHERE id = $1', [user.id])
+    if (!rows.length || rows[0].role !== 'admin') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
 
     const { action, email, password, displayName, userId } = await request.json()
-
-    client = getDbClient()
-    await client.connect()
 
     if (action === 'create') {
       if (!email || !password) {
@@ -79,36 +94,5 @@ export async function POST(request) {
     return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 })
   } finally {
     if (client) await client.end()
-  }
-}
-
-async function getAuthUser(request) {
-  try {
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    )
-
-    let token = null
-
-    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.slice(7).trim()
-    }
-
-    if (!token) {
-      const cookieHeader = request.headers.get('cookie') || ''
-      const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/)
-      if (tokenMatch) token = decodeURIComponent(tokenMatch[1])
-    }
-
-    if (!token) return null
-
-    const { data, error } = await supabaseAdmin.auth.getUser(token)
-    if (error || !data?.user) return null
-    return data.user
-  } catch {
-    return null
   }
 }

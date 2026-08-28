@@ -363,45 +363,10 @@ export default function AdminPanel() {
   const getAuthToken = async () => {
     if (authTokenRef.current) return authTokenRef.current
     try {
-      // Try getSession first
       const { data } = await supabase.auth.getSession()
-      const token = data?.session?.access_token
-      if (token) {
-        authTokenRef.current = token
-        return token
-      }
-      // Fallback: try localStorage directly
-      if (typeof window !== 'undefined') {
-        const keys = Object.keys(localStorage)
-        for (const key of keys) {
-          if (key.includes('auth') && key.includes('token')) {
-            try {
-              const stored = JSON.parse(localStorage.getItem(key))
-              if (stored?.access_token) {
-                authTokenRef.current = stored.access_token
-                return stored.access_token
-              }
-            } catch {}
-          }
-        }
-        // Try the standard Supabase storage key pattern
-        for (const key of keys) {
-          if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
-            try {
-              const stored = JSON.parse(localStorage.getItem(key))
-              if (stored?.current?.access_token) {
-                authTokenRef.current = stored.current.access_token
-                return stored.current.access_token
-              }
-              if (stored?.access_token) {
-                authTokenRef.current = stored.access_token
-                return stored.access_token
-              }
-            } catch {}
-          }
-        }
-      }
-      return null
+      const token = data?.session?.access_token || null
+      authTokenRef.current = token
+      return token
     } catch { return null }
   }
 
