@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { checkRateLimit } from '@/lib/rate-limit'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+import { checkRateLimit, maybeCleanup } from '@/lib/rate-limit'
+import { isValidEmail, sanitizeText } from '@/lib/security'
 
 export async function POST(request) {
   try {
+    maybeCleanup()
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     if (!checkRateLimit(`complaint:${ip}`, 3, 300000)) {
       return NextResponse.json({ error: 'تم تجاوز الحد المسموح. حاول مرة أخرى بعد 5 دقائق' }, { status: 429 })
@@ -20,7 +16,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 })
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       return NextResponse.json({ error: 'البريد الإلكتروني غير صحيح' }, { status: 400 })
     }
 
@@ -32,9 +28,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })
     }
 
-    const safeSubject = subject.replace(/<[^>]*>/g, '').substring(0, 200)
-    const safeMessage = message.replace(/<[^>]*>/g, '').substring(0, 2000)
-    const safeEmail = email.replace(/<[^>]*>/g, '').substring(0, 200)
+    const safeSubject = sanitizeText(subject, 200)
+    const safeMessage = sanitizeText(message, 2000)
+    const safeEmail = sanitizeText(email, 200)
+
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not configured')
+      return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 })
+    }
+
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      serviceKey
+    )
 
     const { error } = await supabaseAdmin.from('complaints').insert({
       email: safeEmail,

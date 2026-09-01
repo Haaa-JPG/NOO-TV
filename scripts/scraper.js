@@ -1,5 +1,15 @@
 const { chromium } = require('playwright')
 
+const BROWSER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-gpu',
+  '--disable-dev-shm-usage',
+  '--no-first-run',
+  '--no-zygote',
+  '--single-process',
+]
+
 const SOURCE_PATTERNS = /3isk|qrmzi|krmzi|anaplayer/i
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -26,8 +36,8 @@ async function extractM3u8FromPage(page, sourceUrl) {
 
   const m3u8Promise = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error('Timeout: m3u8 not found in 60s'))
-    }, 60000)
+      reject(new Error('Timeout: m3u8 not found in 45s'))
+    }, 45000)
 
     const onResponse = (response) => {
       const url = response.url()
@@ -41,38 +51,25 @@ async function extractM3u8FromPage(page, sourceUrl) {
 
     page.on('response', onResponse)
 
-    const onCrash = () => {
+    page.once('close', () => {
       clearTimeout(timer)
       page.removeListener('response', onResponse)
-      if (!m3u8Url) reject(new Error('Page crashed or closed'))
-    }
-    page.once('close', onCrash)
-    page.once('crash', onCrash)
+      if (!m3u8Url) reject(new Error('Page closed before m3u8 found'))
+    })
   })
 
-  await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
-  await page.waitForTimeout(5000)
+  await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 25000 })
+  await page.waitForTimeout(3000)
 
   try {
-    const popups = await page.$$('[class*="close"], [class*="Close"], .ad-close, .popup-close')
-    for (const popup of popups) {
-      try { await popup.click({ timeout: 1000 }) } catch {}
-    }
+    const playBtn = await page.$('#playImage')
+    if (playBtn) await playBtn.click({ timeout: 3000 })
   } catch {}
 
   try {
-    const playBtn = await page.$('#playImage, .play-btn, [class*="play"], .playButton, #player')
-    if (playBtn) {
-      await playBtn.click({ timeout: 5000 })
-      await page.waitForTimeout(3000)
-    }
-  } catch {}
-
-  try {
-    const serverItems = await page.$$('#server-list li, .server-list li, [class*="server"] li, .servers li')
+    const serverItems = await page.$$('#server-list li')
     if (serverItems.length > 0) {
-      await serverItems[0].click({ timeout: 5000 })
-      await page.waitForTimeout(3000)
+      await serverItems[0].click({ timeout: 3000 })
     }
   } catch {}
 
@@ -86,22 +83,16 @@ async function scrapeM3u8(sourceUrl, options = {}) {
     throw new Error('No source URL provided')
   }
 
+  if (!isSourceUrl(sourceUrl)) {
+    throw new Error(`Unsupported source URL: ${sourceUrl}`)
+  }
+
   let browser = null
   let context = null
   let page = null
 
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-features=IsolateOrigins,site-per-process',
-      ],
-    })
+    browser = await chromium.launch({ headless: true, args: BROWSER_ARGS })
     context = await browser.newContext({ userAgent: USER_AGENT })
     page = await context.newPage()
 

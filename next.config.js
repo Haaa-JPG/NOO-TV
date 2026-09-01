@@ -4,19 +4,17 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    // Remove if not using Server Components
     serverComponentsExternalPackages: [],
   },
   webpack(config, { dev }) {
     if (dev) {
-      // Reduce CPU/memory from file watching
       config.watchOptions = {
-        poll: 2000, // check every 2 seconds
-        aggregateTimeout: 300, // wait before rebuilding
+        poll: 2000,
+        aggregateTimeout: 300,
         ignored: ['**/node_modules'],
-      };
+      }
     }
-    return config;
+    return config
   },
   onDemandEntries: {
     maxInactiveAge: 10000,
@@ -33,7 +31,20 @@ const nextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
           { key: "X-XSS-Protection", value: "1; mode=block" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-          { key: "Content-Security-Policy", value: "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob: *; connect-src 'self' https: http: wss: ws:; frame-src 'self' https: http:; media-src 'self' https: http: blob:; font-src 'self' data: https:; object-src 'none'; base-uri 'self'; form-action 'self';" },
+          { key: "Content-Security-Policy", value: [
+            "default-src 'self' https: data: blob:",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' https: http: data: blob:",
+            "connect-src 'self' https: http: wss: ws:",
+            "frame-src 'self' https: http:",
+            "media-src 'self' https: http: blob:",
+            "font-src 'self' data: https:",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+          ].join('; ') },
         ],
       },
       {

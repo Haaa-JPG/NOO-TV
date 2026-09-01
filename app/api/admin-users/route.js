@@ -1,38 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getDbClient } from '@/lib/db'
-import { checkRateLimit } from '@/lib/rate-limit'
-
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    return JSON.parse(Buffer.from(parts[1], 'base64url').toString())
-  } catch { return null }
-}
-
-async function getAuthUser(request) {
-  try {
-    let token = null
-    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization')
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.slice(7).trim()
-    }
-    if (!token) {
-      const cookieHeader = request.headers.get('cookie') || ''
-      const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/)
-      if (tokenMatch) token = decodeURIComponent(tokenMatch[1])
-    }
-    if (!token) return null
-    const payload = decodeJwtPayload(token)
-    if (!payload || !payload.sub) return null
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
-    return { id: payload.sub, email: payload.email || '' }
-  } catch { return null }
-}
+import { checkRateLimit, maybeCleanup } from '@/lib/rate-limit'
+import { isValidEmail, isValidUUID, sanitizeText } from '@/lib/security'
 
 export async function POST(request) {
   let client
   try {
+    maybeCleanup()
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     if (!checkRateLimit(`admin-users:${ip}`, 10, 60000)) {
       return NextResponse.json({ error: 'تم تجاوز الحد المسموح' }, { status: 429 })
@@ -43,25 +17,43 @@ export async function POST(request) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
 
-    client = getDbClient()
-    const { rows } = await client.query('SELECT role FROM public.users WHERE id = $1', [user.id])
-    if (!rows.length || rows[0].role !== 'admin') {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not configured - admin operations disabled')
+      return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 })
+    }
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      serviceKey
+    )
+
+    const { data: profile } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile || profile.role !== 'admin') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
 
     const { action, email, password, displayName, userId } = await request.json()
 
+    client = getDbClient()
+    await client.connect()
+
     if (action === 'create') {
       if (!email || !password) {
         return NextResponse.json({ error: 'البريد وكلمة المرور مطلوبان' }, { status: 400 })
       }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!isValidEmail(email)) {
         return NextResponse.json({ error: 'البريد الإلكتروني غير صحيح' }, { status: 400 })
       }
       if (password.length < 6) {
         return NextResponse.json({ error: 'كلمة المرور 6 أحرف على الأقل' }, { status: 400 })
       }
-      const safeName = (displayName || '').replace(/<[^>]*>/g, '').substring(0, 100)
+      const safeName = sanitizeText(displayName || '', 100)
       const result = await client.query(
         `SELECT public.direct_signup($1, $2, $3)`,
         [email, password, safeName]
@@ -74,8 +66,11 @@ export async function POST(request) {
     }
 
     if (action === 'delete') {
-      if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+      if (!userId || !isValidUUID(userId)) {
         return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 })
+      }
+      if (userId === user.id) {
+        return NextResponse.json({ error: 'لا يمكنك حذف نفسك' }, { status: 400 })
       }
       await client.query('BEGIN')
       await client.query(`DELETE FROM public.users WHERE id = $1`, [userId])
@@ -94,5 +89,25 @@ export async function POST(request) {
     return NextResponse.json({ error: 'خطأ في الخادم' }, { status: 500 })
   } finally {
     if (client) await client.end()
+  }
+}
+
+async function getAuthUser(request) {
+  try {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceKey) return null
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      serviceKey
+    )
+    const cookieHeader = request.headers.get('cookie') || ''
+    const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/)
+    if (!tokenMatch) return null
+    const { data, error } = await supabaseAdmin.auth.getUser(decodeURIComponent(tokenMatch[1]))
+    if (error || !data?.user) return null
+    return data.user
+  } catch {
+    return null
   }
 }

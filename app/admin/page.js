@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, getCurrentUser, signOut } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload, Play, X, Server, Activity, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload, Play, X } from 'lucide-react'
 import Link from 'next/link'
 
 function sanitize(str) {
@@ -169,7 +169,6 @@ export default function AdminPanel() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('movies')
-  const authTokenRef = useRef(null)
 
   // Movies
   const [movies, setMovies] = useState([])
@@ -233,16 +232,6 @@ export default function AdminPanel() {
   // Preview
   const [previewUrl, setPreviewUrl] = useState(null)
 
-  // Streaming sources
-  const [streamingSources, setStreamingSources] = useState([])
-  const [showSourceForm, setShowSourceForm] = useState(false)
-  const [sourceForm, setSourceForm] = useState({ name: '', api_base_url: '', source_type: 'generic', priority: 0 })
-  const [editingSource, setEditingSource] = useState(null)
-  const [sourceJobs, setSourceJobs] = useState([])
-  const [sourceHealth, setSourceHealth] = useState({})
-  const [showSourceJobs, setShowSourceJobs] = useState(null)
-  const [checkingHealth, setCheckingHealth] = useState({})
-
   useEffect(() => {
     checkAuth()
   }, [])
@@ -269,12 +258,6 @@ export default function AdminPanel() {
       })
       router.push('/')
       return
-    }
-
-    // Store auth token for API calls
-    const { data: sessionData } = await supabase.auth.getSession()
-    if (sessionData?.session?.access_token) {
-      authTokenRef.current = sessionData.session.access_token
     }
 
     setUser(user)
@@ -348,143 +331,11 @@ export default function AdminPanel() {
       .eq('setting_key', 'intro_video_url')
       .maybeSingle()
     if (introData?.setting_value) setIntroVideoUrl(introData.setting_value)
-
-    // Load streaming sources
-    loadStreamingSources()
   }
 
   const loadHeroItems = async () => {
     const { data } = await supabase.from('featured_hero').select('*').order('display_order', { ascending: true })
     if (data) setHeroItems(data)
-  }
-
-  // ============ STREAMING SOURCES ============
-
-  const getAuthToken = async () => {
-    if (authTokenRef.current) return authTokenRef.current
-    try {
-      const { data } = await supabase.auth.getSession()
-      const token = data?.session?.access_token || null
-      authTokenRef.current = token
-      return token
-    } catch { return null }
-  }
-
-  const authFetch = async (url, options = {}) => {
-    const token = await getAuthToken()
-    const headers = { ...options.headers }
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    return fetch(url, { ...options, headers })
-  }
-
-  const loadStreamingSources = async () => {
-    try {
-      const res = await authFetch('/api/streaming/sources')
-      const data = await res.json()
-      if (data.sources) setStreamingSources(data.sources)
-    } catch (err) {
-      console.error('Failed to load streaming sources:', err)
-    }
-  }
-
-  const handleSourceSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      if (!sourceForm.name || !sourceForm.api_base_url) {
-        throw new Error('الاسم ورابط API مطلوبان')
-      }
-      const payload = {
-        name: sourceForm.name,
-        api_base_url: sourceForm.api_base_url,
-        source_type: sourceForm.source_type,
-        priority: parseInt(sourceForm.priority) || 0,
-      }
-      if (editingSource) {
-        const res = await authFetch('/api/streaming/sources', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingSource, ...payload }),
-        })
-        const data = await res.json()
-        if (data.error) throw new Error(data.error)
-        toast({ title: 'تم التحديث' })
-      } else {
-        const res = await authFetch('/api/streaming/sources', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        const data = await res.json()
-        if (data.error) throw new Error(data.error)
-        toast({ title: 'تمت الإضافة' })
-      }
-      setShowSourceForm(false)
-      setEditingSource(null)
-      setSourceForm({ name: '', api_base_url: '', source_type: 'generic', priority: 0 })
-      loadStreamingSources()
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    }
-  }
-
-  const handleDeleteSource = async (id) => {
-    if (!confirm('هل أنت متأكد من حذف هذا المصدر؟')) return
-    try {
-      const res = await authFetch(`/api/streaming/sources?id=${id}`, {
-        method: 'DELETE',
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      toast({ title: 'تم الحذف' })
-      loadStreamingSources()
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    }
-  }
-
-  const handleToggleSourceActive = async (id, current) => {
-    try {
-      const res = await fetch('/api/streaming/sources', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_active: !current }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      toast({ title: current ? 'تم التعطيل' : 'تم التفعيل' })
-      loadStreamingSources()
-    } catch (err) {
-      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
-    }
-  }
-
-  const checkSourceHealth = async (sourceId) => {
-    if (checkingHealth[sourceId]) return
-    setCheckingHealth(prev => ({ ...prev, [sourceId]: true }))
-    setSourceHealth(prev => ({ ...prev, [sourceId]: 'checking' }))
-    try {
-      const res = await authFetch(`/api/streaming/health?source_id=${sourceId}`)
-      const data = await res.json()
-      setSourceHealth(prev => ({ ...prev, [sourceId]: data.status || 'down' }))
-      loadStreamingSources()
-      toast({ title: data.status === 'healthy' ? 'المصدر يعمل بشكل طبيعي' : 'المصدر يواجه مشكلة' })
-    } catch {
-      setSourceHealth(prev => ({ ...prev, [sourceId]: 'down' }))
-      toast({ title: 'خطأ', description: 'تعذر فحص الحالة', variant: 'destructive' })
-    } finally {
-      setCheckingHealth(prev => ({ ...prev, [sourceId]: false }))
-    }
-  }
-
-  const loadSourceJobs = async (sourceId) => {
-    setShowSourceJobs(sourceId)
-    try {
-      const res = await authFetch(`/api/streaming/jobs?source_id=${sourceId}&limit=20`)
-      const data = await res.json()
-      if (data.jobs) setSourceJobs(data.jobs)
-    } catch (err) {
-      console.error('Failed to load jobs:', err)
-    }
   }
 
   const saveIntroVideo = async () => {
@@ -942,7 +793,7 @@ export default function AdminPanel() {
   const handleDeleteUser = async (userId) => {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم نهائياً من كل شيء؟')) return
     try {
-      const res = await authFetch('/api/admin-users', {
+      const res = await fetch('/api/admin-users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', userId }),
@@ -962,7 +813,7 @@ export default function AdminPanel() {
     try {
       if (!newUserForm.email || !newUserForm.password) throw new Error('البريد وكلمة المرور مطلوبان')
       if (newUserForm.password.length < 6) throw new Error('كلمة المرور 6 أحرف على الأقل')
-      const res = await authFetch('/api/admin-users', {
+      const res = await fetch('/api/admin-users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create', email: newUserForm.email, password: newUserForm.password, displayName: newUserForm.displayName }),
@@ -1079,9 +930,6 @@ export default function AdminPanel() {
             </TabsTrigger>
             <TabsTrigger value="hero" className="data-[state=active]:bg-red-600">
               <Eye className="w-4 h-4 ml-2" /> البانر الرئيسي
-            </TabsTrigger>
-            <TabsTrigger value="streaming" className="data-[state=active]:bg-red-600" onClick={loadStreamingSources}>
-              <Server className="w-4 h-4 ml-2" /> مصادر البث
             </TabsTrigger>
           </TabsList>
 
@@ -2471,150 +2319,6 @@ export default function AdminPanel() {
               ))}
               {heroItems.length === 0 && (
                 <p className="text-center text-gray-400 py-8">لا توجد عناصر في البانر. أضف صورة أو فيديو.</p>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* ================= STREAMING SOURCES ================= */}
-          <TabsContent value="streaming">
-            <div className="mb-4">
-              <Button
-                onClick={() => {
-                  setShowSourceForm(true)
-                  setEditingSource(null)
-                  setSourceForm({ name: '', api_base_url: '', source_type: 'generic', priority: 0 })
-                }}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                <Plus className="w-4 h-4 ml-2" /> إضافة مصدر جديد
-              </Button>
-            </div>
-
-            {showSourceForm && (
-              <Card className="bg-gray-900 border-gray-800 mb-6">
-                <CardHeader>
-                  <CardTitle>{editingSource ? 'تحرير المصدر' : 'إضافة مصدر جديد'}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSourceSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label>اسم المصدر</Label>
-                        <Input value={sourceForm.name} onChange={e => setSourceForm({ ...sourceForm, name: e.target.value })} placeholder="مثال: Source 1" className="bg-gray-800 border-gray-700" />
-                      </div>
-                      <div>
-                        <Label>رابط API</Label>
-                        <Input value={sourceForm.api_base_url} onChange={e => setSourceForm({ ...sourceForm, api_base_url: e.target.value })} placeholder="https://api.example.com" className="bg-gray-800 border-gray-700" />
-                      </div>
-                      <div>
-                        <Label>نوع المصدر</Label>
-                        <Select value={sourceForm.source_type} onValueChange={v => setSourceForm({ ...sourceForm, source_type: v })}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="generic">عام</SelectItem>
-                            <SelectItem value="3isk">3isk</SelectItem>
-                            <SelectItem value="qrmzi">Qrmzi</SelectItem>
-                            <SelectItem value="anaplayer">Anaplayer</SelectItem>
-                            <SelectItem value="custom">مخصص</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>الأولوية (الأعلى أولاً)</Label>
-                        <Input type="number" value={sourceForm.priority} onChange={e => setSourceForm({ ...sourceForm, priority: e.target.value })} className="bg-gray-800 border-gray-700" />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="submit" className="bg-red-600 hover:bg-red-700">{editingSource ? 'تحديث' : 'إضافة'}</Button>
-                      <Button type="button" variant="outline" onClick={() => { setShowSourceForm(false); setEditingSource(null) }}>إلغاء</Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="space-y-3">
-              {streamingSources.map((source) => (
-                <Card key={source.id} className="bg-gray-900 border-gray-800">
-                  <CardContent className="p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          source.health_status === 'healthy' ? 'bg-green-600/20' :
-                          source.health_status === 'degraded' ? 'bg-yellow-600/20' :
-                          source.health_status === 'down' ? 'bg-red-600/20' : 'bg-gray-700'
-                        }`}>
-                          <Server className={`w-5 h-5 ${
-                            source.health_status === 'healthy' ? 'text-green-400' :
-                            source.health_status === 'degraded' ? 'text-yellow-400' :
-                            source.health_status === 'down' ? 'text-red-400' : 'text-gray-400'
-                          }`} />
-                        </div>
-                        <div>
-                          <div className="font-bold flex items-center gap-2">
-                            {source.name}
-                            {!source.is_active && <span className="text-xs bg-red-600/20 text-red-400 px-2 py-0.5 rounded">معطّل</span>}
-                            {source.health_status === 'healthy' && <CheckCircle className="w-4 h-4 text-green-400" />}
-                            {source.health_status === 'down' && <XCircle className="w-4 h-4 text-red-400" />}
-                            {sourceHealth[source.id] === 'checking' && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
-                          </div>
-                          <p className="text-xs text-gray-500 truncate max-w-md">{source.api_base_url}</p>
-                          <p className="text-xs text-gray-500">النوع: {source.source_type} | الأولوية: {source.priority} | نجاح: {source.success_rate || 0}%</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => checkSourceHealth(source.id)} disabled={checkingHealth[source.id]} title="فحص الحالة">
-                          {checkingHealth[source.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => loadSourceJobs(source.id)} title="المهام">
-                          <RefreshCw className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleSourceActive(source.id, source.is_active)}>
-                          {source.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => {
-                          setEditingSource(source.id)
-                          setSourceForm({ name: source.name, api_base_url: source.api_base_url, source_type: source.source_type, priority: source.priority })
-                          setShowSourceForm(true)
-                        }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleDeleteSource(source.id)} className="text-red-500">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Jobs Panel */}
-                    {showSourceJobs === source.id && sourceJobs.length > 0 && (
-                      <div className="mt-4 border-t border-gray-800 pt-4">
-                        <h4 className="text-sm font-semibold mb-2 text-gray-300">المهام النشطة</h4>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {sourceJobs.map((job) => (
-                            <div key={job.id} className="flex items-center justify-between text-xs bg-gray-800 rounded-lg px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                {job.status === 'pending' && <Clock className="w-3 h-3 text-yellow-400" />}
-                                {job.status === 'processing' && <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />}
-                                {job.status === 'completed' && <CheckCircle className="w-3 h-3 text-green-400" />}
-                                {job.status === 'failed' && <XCircle className="w-3 h-3 text-red-400" />}
-                                <span className="text-gray-300">{job.job_type} - {job.content_type}</span>
-                              </div>
-                              <span className="text-gray-500">{new Date(job.created_at).toLocaleString('ar')}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {showSourceJobs === source.id && sourceJobs.length === 0 && (
-                      <div className="mt-4 border-t border-gray-800 pt-4">
-                        <p className="text-xs text-gray-500 text-center">لا توجد مهام نشطة</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-              {streamingSources.length === 0 && (
-                <p className="text-center text-gray-400 py-8">لا توجد مصادر بث. أضف مصدرًا جديدًا.</p>
               )}
             </div>
           </TabsContent>

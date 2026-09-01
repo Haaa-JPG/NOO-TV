@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { checkRateLimit, maybeCleanup } from '@/lib/rate-limit'
 
 const ALLOWED_HOSTS = [
   'cdnz.quest',
@@ -30,6 +31,8 @@ const BLOCKED_IP_RANGES = [
   /^::1$/,
   /^\[::1\]$/,
 ]
+
+const PROXY_TIMEOUT = 30000
 
 function isAllowedUrl(urlString) {
   try {
@@ -67,45 +70,29 @@ function rewriteM3u8Segments(content, baseUrl) {
   }).join('\n')
 }
 
-const rateLimitMap = new Map()
-
-function checkRateLimit(ip, limit = 60, windowMs = 60000) {
-  const now = Date.now()
-  const record = rateLimitMap.get(ip)
-  if (!record || now - record.start > windowMs) {
-    rateLimitMap.set(ip, { start: now, count: 1 })
-    return true
-  }
-  record.count++
-  if (record.count > limit) return false
-  return true
-}
-
-if (rateLimitMap.size > 10000) {
-  const now = Date.now()
-  for (const [key, val] of rateLimitMap) {
-    if (now - val.start > 60000) rateLimitMap.delete(key)
-  }
-}
-
 export async function GET(request) {
-  const { searchParams } = new URL(request.url)
-  const targetUrl = searchParams.get('url')
-
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  if (!checkRateLimit(ip, 60, 60000)) {
-    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-  }
-
-  if (!targetUrl) {
-    return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 })
-  }
-
-  if (!isAllowedUrl(targetUrl)) {
-    return NextResponse.json({ error: 'URL not allowed' }, { status: 403 })
-  }
-
+  let client
   try {
+    maybeCleanup()
+    const { searchParams } = new URL(request.url)
+    const targetUrl = searchParams.get('url')
+
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    if (!checkRateLimit(`proxy:${ip}`, 60, 60000)) {
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+    }
+
+    if (!targetUrl) {
+      return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 })
+    }
+
+    if (!isAllowedUrl(targetUrl)) {
+      return NextResponse.json({ error: 'URL not allowed' }, { status: 403 })
+    }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT)
+
     const requestHeaders = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       'Referer': new URL(targetUrl).origin,
@@ -116,12 +103,17 @@ export async function GET(request) {
     const response = await fetch(targetUrl, {
       headers: requestHeaders,
       redirect: 'follow',
+      signal: controller.signal,
     })
 
+    clearTimeout(timeout)
+
     if (!response.ok) {
-      return new NextResponse(`Upstream error: ${response.status}`, {
-        status: response.status,
-        headers: { 'Access-Control-Allow-Origin': '*' },
+      return new NextResponse(null, {
+        status: 502,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
       })
     }
 
@@ -162,6 +154,9 @@ export async function GET(request) {
     const body = await response.arrayBuffer()
     return new NextResponse(body, { status: 200, headers })
   } catch (error) {
+    if (error.name === 'AbortError') {
+      return NextResponse.json({ error: 'Proxy timeout' }, { status: 504 })
+    }
     return NextResponse.json({ error: 'Proxy failed' }, { status: 500 })
   }
 }

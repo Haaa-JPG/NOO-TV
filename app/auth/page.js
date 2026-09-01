@@ -16,7 +16,12 @@ function AuthContent() {
   const searchParams = useSearchParams()
   const redirectTo = (() => {
     const r = searchParams.get('redirect') || searchParams.get('next') || '/'
-    if (!r.startsWith('/') || r.startsWith('//')) return '/'
+    if (!r.startsWith('/') || r.startsWith('//') || r.includes('\\') || r.includes('\n') || r.includes('\r') || r.length > 500) return '/'
+    try {
+      new URL(r, window.location.origin)
+    } catch {
+      return '/'
+    }
     return r
   })()
   const { toast } = useToast()
