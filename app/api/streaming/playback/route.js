@@ -3,14 +3,6 @@ import { getDbClient } from '@/lib/db'
 import { getAuthUser } from '@/lib/streaming-auth'
 import { checkRateLimit } from '@/lib/rate-limit'
 
-let scrapeModule = null
-async function getScraper() {
-  if (!scrapeModule) {
-    scrapeModule = await import('@/scripts/scraper')
-  }
-  return scrapeModule
-}
-
 export async function GET(request) {
   try {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -36,79 +28,62 @@ export async function GET(request) {
     }
 
     const pool = getDbClient()
+    const table = contentType === 'movie' ? 'public.movies' : 'public.episodes'
 
-    let contentUrl = null
-    let activeStreamUrl = null
+    const { rows } = await pool.query(
+      `SELECT id, embed_url, extracted_m3u8_url, extracted_m3u8_expires FROM ${table} WHERE id = $1 AND is_active = TRUE`,
+      [contentId]
+    )
 
-    if (contentType === 'movie') {
-      const { rows } = await pool.query(
-        `SELECT id, embed_url, active_stream_url, extracted_m3u8_url, extracted_m3u8_expires FROM public.movies WHERE id = $1 AND is_active = TRUE`,
-        [contentId]
-      )
-      if (rows.length === 0) {
-        return NextResponse.json({ error: 'المحتوى غير موجود' }, { status: 404 })
-      }
-      contentUrl = rows[0].embed_url
-      activeStreamUrl = rows[0].extracted_m3u8_url || rows[0].active_stream_url
-      if (activeStreamUrl && rows[0].extracted_m3u8_expires) {
-        if (new Date(rows[0].extracted_m3u8_expires) > new Date()) {
-          return NextResponse.json({ url: activeStreamUrl, source_name: 'cached' })
-        }
-      }
-    } else if (contentType === 'episode') {
-      const { rows } = await pool.query(
-        `SELECT id, embed_url, active_stream_url, extracted_m3u8_url, extracted_m3u8_expires FROM public.episodes WHERE id = $1 AND is_active = TRUE`,
-        [contentId]
-      )
-      if (rows.length === 0) {
-        return NextResponse.json({ error: 'المحتوى غير موجود' }, { status: 404 })
-      }
-      contentUrl = rows[0].embed_url
-      activeStreamUrl = rows[0].extracted_m3u8_url || rows[0].active_stream_url
-      if (activeStreamUrl && rows[0].extracted_m3u8_expires) {
-        if (new Date(rows[0].extracted_m3u8_expires) > new Date()) {
-          return NextResponse.json({ url: activeStreamUrl, source_name: 'cached' })
-        }
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'المحتوى غير موجود' }, { status: 404 })
+    }
+
+    const content = rows[0]
+
+    // 1. Return cached m3u8 if still valid
+    if (content.extracted_m3u8_url && content.extracted_m3u8_expires) {
+      if (new Date(content.extracted_m3u8_expires) > new Date()) {
+        return NextResponse.json({ url: content.extracted_m3u8_url, source_name: 'cached', expires_at: content.extracted_m3u8_expires })
       }
     }
 
-    if (!contentUrl) {
-      return NextResponse.json({ error: 'لا يوجد رابط تضمين لهذا المحتوى' }, { status: 404 })
-    }
+    // 2. Try streaming API if configured
+    if (content.embed_url && process.env.STREAMING_API_URL) {
+      try {
+        const apiKey = process.env.STREAMING_API_KEY
+        const baseUrl = process.env.STREAMING_API_URL.replace(/\/+$/, '')
+        const headers = { 'Content-Type': 'application/json' }
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
 
-    const { isSourceUrl, scrapeM3u8 } = await getScraper()
-
-    if (!isSourceUrl(contentUrl)) {
-      return NextResponse.json({ url: contentUrl, source_name: 'direct' })
-    }
-
-    try {
-      const result = await scrapeM3u8(contentUrl, { timeout: 90000 })
-
-      if (result.m3u8Url) {
-        const table = contentType === 'movie' ? 'public.movies' : 'public.episodes'
-        await pool.query(
-          `UPDATE ${table}
-           SET extracted_m3u8_url = $1, extracted_m3u8_expires = $2, active_stream_url = $1, last_refreshed = NOW(), stream_status = 'active'
-           WHERE id = $3`,
-          [result.m3u8Url, result.expiresAt, contentId]
-        )
-
-        return NextResponse.json({
-          url: result.m3u8Url,
-          source_name: 'extracted',
-          expires_at: result.expiresAt,
+        const res = await fetch(`${baseUrl}/playback`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            content_id: contentId,
+            content_type: contentType,
+            source_url: content.embed_url,
+          }),
+          signal: AbortSignal.timeout(120000),
         })
-      }
-    } catch (extractErr) {
-      console.error('Local extraction failed:', extractErr.message)
+
+        const data = await res.json()
+        if (res.ok && data.url) {
+          await pool.query(
+            `UPDATE ${table} SET extracted_m3u8_url = $1, extracted_m3u8_expires = $2, active_stream_url = $1, last_refreshed = NOW(), stream_status = 'active' WHERE id = $3`,
+            [data.url, data.expires_at || new Date(Date.now() + 12 * 3600 * 1000).toISOString(), contentId]
+          )
+          return NextResponse.json({ url: data.url, source_name: 'streaming-api', expires_at: data.expires_at })
+        }
+      } catch {}
     }
 
-    if (contentUrl) {
-      return NextResponse.json({ url: contentUrl, source_name: 'embed' })
+    // 3. Return the raw embed URL — VideoPlayer SourceExtracting will handle extraction
+    if (content.embed_url) {
+      return NextResponse.json({ url: content.embed_url, source_name: 'embed' })
     }
 
-    return NextResponse.json({ error: 'فشل استخراج رابط الفيديو' }, { status: 502 })
+    return NextResponse.json({ error: 'لا يوجد رابط تضمين' }, { status: 404 })
   } catch {
     return NextResponse.json({ error: 'حدث خطأ في الخادم' }, { status: 500 })
   }

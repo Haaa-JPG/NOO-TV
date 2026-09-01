@@ -280,28 +280,18 @@ function SourceExtracting({ url, onExtracted, onError, contentId, contentType })
       try {
         let m3u8 = null
 
-        // Try local extraction via NOO TV proxy
-        if (contentId && contentType) {
-          try {
-            const { supabase } = await import('@/lib/supabase')
-            const { data: sessionData } = await supabase.auth.getSession()
-            const token = sessionData?.session?.access_token
+        // Try NOO TV internal extraction
+        try {
+          const encodedUrl = encodeURIComponent(url)
+          const extractRes = await fetch(`/api/extract?url=${encodedUrl}`, {
+            signal: AbortSignal.timeout(90000),
+          })
+          const extractData = await extractRes.json()
+          if (extractData.m3u8) m3u8 = extractData.m3u8
+          else if (extractData.url) m3u8 = extractData.url
+        } catch {}
 
-            const headers = { 'Content-Type': 'application/json' }
-            if (token) headers['Authorization'] = `Bearer ${token}`
-
-            const proxyRes = await fetch(`/api/streaming/playback?content_id=${encodeURIComponent(contentId)}&content_type=${contentType}`, {
-              headers,
-              signal: AbortSignal.timeout(120000),
-            })
-            const proxyData = await proxyRes.json()
-            if (proxyRes.ok && proxyData.url) {
-              m3u8 = proxyData.url
-            }
-          } catch {}
-        }
-
-        // Fallback to old extract API
+        // Fallback to external extract API
         if (!m3u8 && EXTRACT_API) {
           try {
             const encodedUrl = encodeURIComponent(url)
