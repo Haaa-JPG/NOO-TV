@@ -228,6 +228,7 @@ export default function AdminPanel() {
   // Intro video
   const [introVideoUrl, setIntroVideoUrl] = useState('')
   const [savingIntro, setSavingIntro] = useState(false)
+  const [platformSettings, setPlatformSettings] = useState({ default_language: 'en', default_theme: 'dark' })
 
   // Preview
   const [previewUrl, setPreviewUrl] = useState(null)
@@ -331,6 +332,22 @@ export default function AdminPanel() {
       .eq('setting_key', 'intro_video_url')
       .maybeSingle()
     if (introData?.setting_value) setIntroVideoUrl(introData.setting_value)
+
+    // Load platform settings (default language/theme)
+    const { data: langData } = await supabase
+      .from('site_settings')
+      .select('setting_value')
+      .eq('setting_key', 'default_language')
+      .maybeSingle()
+    const { data: themeData } = await supabase
+      .from('site_settings')
+      .select('setting_value')
+      .eq('setting_key', 'default_theme')
+      .maybeSingle()
+    setPlatformSettings({
+      default_language: langData?.setting_value || 'en',
+      default_theme: themeData?.setting_value || 'dark',
+    })
   }
 
   const loadHeroItems = async () => {
@@ -350,6 +367,23 @@ export default function AdminPanel() {
       toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     } finally {
       setSavingIntro(false)
+    }
+  }
+
+  const savePlatformSettings = async () => {
+    try {
+      await supabase
+        .from('site_settings')
+        .upsert({ setting_key: 'default_language', setting_value: platformSettings.default_language, value_type: 'string' }, { onConflict: 'setting_key' })
+      await supabase
+        .from('site_settings')
+        .upsert({ setting_key: 'default_theme', setting_value: platformSettings.default_theme, value_type: 'string' }, { onConflict: 'setting_key' })
+      // Also persist to localStorage for immediate effect on first-time visitors
+      localStorage.setItem('admin_default_language', platformSettings.default_language)
+      localStorage.setItem('admin_default_theme', platformSettings.default_theme)
+      toast({ title: 'تم حفظ الإعدادات' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -2074,6 +2108,46 @@ export default function AdminPanel() {
 
           {/* ================= HERO BANNER ================= */}
           <TabsContent value="hero">
+            {/* Platform Settings Card */}
+            <Card className="bg-gray-900 border-gray-800 mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Settings className="w-5 h-5 text-red-600" />
+                  إعدادات المنصة (Platform Settings)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-gray-400">الإعدادات الافتراضية للزوار الجدد (غير المسجلين). تُطَبَّق فقط عند أول زيارة.</p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-300">اللغة الافتراضية</Label>
+                    <select
+                      value={platformSettings.default_language}
+                      onChange={(e) => setPlatformSettings({ ...platformSettings, default_language: e.target.value })}
+                      className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white mt-1"
+                    >
+                      <option value="en">English</option>
+                      <option value="ar">العربية</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-gray-300">المظهر الافتراضي</Label>
+                    <select
+                      value={platformSettings.default_theme}
+                      onChange={(e) => setPlatformSettings({ ...platformSettings, default_theme: e.target.value })}
+                      className="w-full bg-black border border-gray-700 rounded-md px-3 py-2 text-white mt-1"
+                    >
+                      <option value="dark">داكن (Dark)</option>
+                      <option value="light">فاتح (Light)</option>
+                    </select>
+                  </div>
+                </div>
+                <Button onClick={savePlatformSettings} className="bg-red-600 hover:bg-red-700">
+                  حفظ الإعدادات
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card className="bg-gray-900 border-gray-800 mb-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
