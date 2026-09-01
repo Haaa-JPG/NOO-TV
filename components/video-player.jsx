@@ -280,10 +280,18 @@ function SourceExtracting({ url, onExtracted, onError, contentId, contentType })
       try {
         let m3u8 = null
 
-        // Try streaming API first via NOO TV proxy
+        // Try local extraction via NOO TV proxy
         if (contentId && contentType) {
           try {
+            const { supabase } = await import('@/lib/supabase')
+            const { data: sessionData } = await supabase.auth.getSession()
+            const token = sessionData?.session?.access_token
+
+            const headers = { 'Content-Type': 'application/json' }
+            if (token) headers['Authorization'] = `Bearer ${token}`
+
             const proxyRes = await fetch(`/api/streaming/playback?content_id=${encodeURIComponent(contentId)}&content_type=${contentType}`, {
+              headers,
               signal: AbortSignal.timeout(120000),
             })
             const proxyData = await proxyRes.json()
