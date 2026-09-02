@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, getCurrentUser, signOut } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -139,7 +139,7 @@ const emptySeriesForm = () => ({
 
 const DAYS_OF_WEEK = [
   { value: 'السبت', label: 'السبت' },
-  { value: 'الأحد', label: 'الأحد' },
+  {_value: 'الأحد', label: 'الأحد' },
   { value: 'الاثنين', label: 'الاثنين' },
   { value: 'الثلاثاء', label: 'الثلاثاء' },
   { value: 'الأربعاء', label: 'الأربعاء' },
@@ -154,40 +154,6 @@ const DAY_RANGES = [
 ]
 
 const DAY_ORDER = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
-
-// Translation helper functions
-async function translateField(text, targetLang = 'ar', sourceLang = 'en') {
-  if (!text || text.trim().length === 0) return ''
-  try {
-    const res = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, targetLang, sourceLang }),
-    })
-    const data = await res.json()
-    return data.translated || text
-  } catch {
-    return text
-  }
-}
-
-async function autoTranslateContent(title, titleAr, description, descriptionAr) {
-  try {
-    const res = await fetch('/api/translate-content', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        title_ar: titleAr,
-        description,
-        description_ar: descriptionAr,
-      }),
-    })
-    return await res.json()
-  } catch {
-    return { title, title_ar: titleAr, description, description_ar: descriptionAr, translated: false }
-  }
-}
 
 const emptyCategoryForm = () => ({
   name: '',
@@ -265,9 +231,6 @@ export default function AdminPanel() {
 
   // Preview
   const [previewUrl, setPreviewUrl] = useState(null)
-
-  // Translation
-  const [translating, setTranslating] = useState({})
 
   useEffect(() => {
     checkAuth()
@@ -474,25 +437,7 @@ export default function AdminPanel() {
           throw new Error('رابط الصفحة المصدر غير صحيح')
         }
       }
-
-      // Auto-translate if Arabic fields are empty
-      let translationResult = { translated: false }
-      if ((!movieForm.title_ar || movieForm.title_ar.trim() === '') && movieForm.title) {
-        toast({ title: 'جاري الترجمة التلقائية...', description: 'ترجمة العنوان والوصف إلى العربية' })
-        translationResult = await autoTranslateContent(
-          movieForm.title,
-          movieForm.title_ar,
-          movieForm.description,
-          movieForm.description_ar
-        )
-      }
-
-      const dataToSave = {
-        ...movieForm,
-        title_ar: translationResult.title_ar || movieForm.title_ar || null,
-        description_ar: translationResult.description_ar || movieForm.description_ar || null,
-      }
-
+      const dataToSave = { ...movieForm }
       if (!dataToSave.source_page_url) dataToSave.source_page_url = null
       if (isSourcePageUrl(dataToSave.embed_url) && !dataToSave.source_page_url) {
         dataToSave.source_page_url = dataToSave.embed_url
@@ -513,9 +458,6 @@ export default function AdminPanel() {
           .insert([dataToSave])
         if (error) throw error
         toast({ title: 'تم إضافة الفيلم' })
-      }
-      if (translationResult.translated) {
-        toast({ title: 'تمت الترجمة التلقائية', description: 'تم ترجمة العنوان والوصف إلى العربية' })
       }
       setShowMovieForm(false)
       setEditingMovie(null)
@@ -552,40 +494,19 @@ export default function AdminPanel() {
   const handleSeriesSubmit = async (e) => {
     e.preventDefault()
     try {
-      // Auto-translate if Arabic fields are empty
-      let translationResult = { translated: false }
-      if ((!seriesForm.title_ar || seriesForm.title_ar.trim() === '') && seriesForm.title) {
-        toast({ title: 'جاري الترجمة التلقائية...', description: 'ترجمة العنوان والوصف إلى العربية' })
-        translationResult = await autoTranslateContent(
-          seriesForm.title,
-          seriesForm.title_ar,
-          seriesForm.description,
-          seriesForm.description_ar
-        )
-      }
-
-      const dataToSave = {
-        ...seriesForm,
-        title_ar: translationResult.title_ar || seriesForm.title_ar || null,
-        description_ar: translationResult.description_ar || seriesForm.description_ar || null,
-      }
-
       if (editingSeries) {
         const { error } = await supabase
           .from('series')
-          .update(dataToSave)
+          .update(seriesForm)
           .eq('id', editingSeries)
         if (error) throw error
         toast({ title: 'تم تحديث المسلسل' })
       } else {
         const { error } = await supabase
           .from('series')
-          .insert([dataToSave])
+          .insert([seriesForm])
         if (error) throw error
         toast({ title: 'تم إضافة المسلسل' })
-      }
-      if (translationResult.translated) {
-        toast({ title: 'تمت الترجمة التلقائية', description: 'تم ترجمة العنوان والوصف إلى العربية' })
       }
       setShowSeriesForm(false)
       setEditingSeries(null)
@@ -766,21 +687,18 @@ export default function AdminPanel() {
         duration: episodeDefaults.duration || 0,
       }
 
-      // Build episodes with titles
       const toInsert = episodes.map((ep, i) => {
         const num = ep.episode_number || ep.number || ep.num || (i + 1)
         const url = ep.embed_url || ep.url || ep.link || ep.src || ''
         const seriesTitle = ep.title || ep.name || ep.title_ar || `الحلقة ${num}`
-        const titleAr = ep.title_ar || ''
         return {
           season_id: expandedSeason.id,
           episode_number: num,
           title: seriesTitle,
-          title_ar: titleAr,
           embed_url: url,
           thumbnail: ep.thumbnail || ep.image || ep.poster || defaults.thumbnail,
           duration: ep.duration || defaults.duration,
-          display_order: ep.episode_display_order || ep.order || num,
+          display_order: ep.display_order || ep.order || num,
           is_active: true,
           stream_status: 'pending',
           ...(isSourcePageUrl(url) ? { source_url: url } : {})
@@ -789,32 +707,6 @@ export default function AdminPanel() {
 
       if (!toInsert.length) {
         throw new Error('لا توجد روابط فيديو صحيحة في الملف')
-      }
-
-      // Auto-translate titles that don't have Arabic translations
-      const needsTranslation = toInsert.filter(ep => ep.title && !ep.title_ar)
-      if (needsTranslation.length > 0) {
-        toast({ title: 'جاري ترجمة العناوين...', description: `ترجمة ${needsTranslation.length} عنوان` })
-        try {
-          const textsToTranslate = needsTranslation.map(ep => ({ text: ep.title, id: ep.episode_number }))
-          const results = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ texts: textsToTranslate, targetLang: 'ar', sourceLang: 'en' }),
-          }).then(r => r.json())
-
-          if (results.results) {
-            for (const result of results.results) {
-              if (result.success) {
-                const ep = toInsert.find(e => e.episode_number === result.id)
-                if (ep) ep.title_ar = result.translated
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('[JSON Upload] Translation failed, continuing without Arabic titles:', err.message)
-          toast({ title: 'تنبيه', description: 'فشلت ترجمة بعض العناوين، سيتم حفظ العناوين الأصلية', variant: 'destructive' })
-        }
       }
 
       const batchSize = 50
@@ -1065,44 +957,12 @@ export default function AdminPanel() {
                   <form onSubmit={handleMovieSubmit} className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <Label>عنوان الفيلم (الإنجليزية)</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={movieForm.title}
-                            onChange={(e) => setMovieForm({ ...movieForm, title: e.target.value })}
-                            className="bg-black border-gray-700 flex-1"
-                            placeholder="Movie Title"
-                            required
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!movieForm.title || translating.movieTitle}
-                            onClick={async () => {
-                              setTranslating({ ...translating, movieTitle: true })
-                              const translated = await translateField(movieForm.title, 'ar', 'en')
-                              setMovieForm({ ...movieForm, title_ar: translated })
-                              setTranslating({ ...translating, movieTitle: false })
-                              toast({ title: 'تمت الترجمة', description: 'تم ترجمة العنوان إلى العربية' })
-                            }}
-                            className="shrink-0"
-                          >
-                            {translating.movieTitle ? (
-                              <span className="animate-spin">⟳</span>
-                            ) : (
-                              <span>🌐 عربي</span>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      <div>
-                        <Label>العنوان بالعربية</Label>
+                        <Label>عنوان الفيلم</Label>
                         <Input
-                          value={movieForm.title_ar || ''}
-                          onChange={(e) => setMovieForm({ ...movieForm, title_ar: e.target.value })}
+                          value={movieForm.title}
+                          onChange={(e) => setMovieForm({ ...movieForm, title: e.target.value })}
                           className="bg-black border-gray-700"
-                          placeholder="عنوان الفيلم بالعربية"
+                          required
                         />
                       </div>
                     </div>
@@ -1120,46 +980,12 @@ export default function AdminPanel() {
                     </div>
 
                     <div>
-                      <Label>الوصف (الإنجليزية)</Label>
-                      <div className="flex gap-2">
-                        <Textarea
-                          value={movieForm.description}
-                          onChange={(e) => setMovieForm({ ...movieForm, description: e.target.value })}
-                          className="bg-black border-gray-700 flex-1"
-                          rows={3}
-                          placeholder="Movie description..."
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!movieForm.description || translating.movieDesc}
-                          onClick={async () => {
-                            setTranslating({ ...translating, movieDesc: true })
-                            const translated = await translateField(movieForm.description, 'ar', 'en')
-                            setMovieForm({ ...movieForm, description_ar: translated })
-                            setTranslating({ ...translating, movieDesc: false })
-                            toast({ title: 'تمت الترجمة', description: 'تم ترجمة الوصف إلى العربية' })
-                          }}
-                          className="shrink-0 self-start"
-                        >
-                          {translating.movieDesc ? (
-                            <span className="animate-spin">⟳</span>
-                          ) : (
-                            <span>🌐 عربي</span>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label>الوصف بالعربية</Label>
+                      <Label>الوصف</Label>
                       <Textarea
-                        value={movieForm.description_ar || ''}
-                        onChange={(e) => setMovieForm({ ...movieForm, description_ar: e.target.value })}
+                        value={movieForm.description}
+                        onChange={(e) => setMovieForm({ ...movieForm, description: e.target.value })}
                         className="bg-black border-gray-700"
                         rows={3}
-                        placeholder="وصف الفيلم بالعربية..."
                       />
                     </div>
 
@@ -1686,49 +1512,14 @@ export default function AdminPanel() {
                       <form onSubmit={handleSeriesSubmit} className="space-y-4">
                         <div className="grid md:grid-cols-2 gap-4">
                           <div>
-                            <Label>عنوان المسلسل (الإنجليزية)</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                value={seriesForm.title}
-                                onChange={(e) => setSeriesForm({ ...seriesForm, title: e.target.value })}
-                                className="bg-black border-gray-700 flex-1"
-                                placeholder="Series Title"
-                                required
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={!seriesForm.title || translating.seriesTitle}
-                                onClick={async () => {
-                                  setTranslating({ ...translating, seriesTitle: true })
-                                  const translated = await translateField(seriesForm.title, 'ar', 'en')
-                                  setSeriesForm({ ...seriesForm, title_ar: translated })
-                                  setTranslating({ ...translating, seriesTitle: false })
-                                  toast({ title: 'تمت الترجمة', description: 'تم ترجمة العنوان إلى العربية' })
-                                }}
-                                className="shrink-0"
-                              >
-                                {translating.seriesTitle ? (
-                                  <span className="animate-spin">⟳</span>
-                                ) : (
-                                  <span>🌐 عربي</span>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                          <div>
-                            <Label>العنوان بالعربية</Label>
+                            <Label>عنوان المسلسل</Label>
                             <Input
-                              value={seriesForm.title_ar || ''}
-                              onChange={(e) => setSeriesForm({ ...seriesForm, title_ar: e.target.value })}
+                              value={seriesForm.title}
+                              onChange={(e) => setSeriesForm({ ...seriesForm, title: e.target.value })}
                               className="bg-black border-gray-700"
-                              placeholder="عنوان المسلسل بالعربية"
+                              required
                             />
                           </div>
-                        </div>
-
-                        <div className="grid md:grid-cols-2 gap-4">
                           <div>
                             <Label>عدد المواسم</Label>
                             <Input
@@ -1738,50 +1529,15 @@ export default function AdminPanel() {
                               className="bg-black border-gray-700"
                             />
                           </div>
-                          <div></div>
                         </div>
 
                         <div>
-                          <Label>الوصف (الإنجليزية)</Label>
-                          <div className="flex gap-2">
-                            <Textarea
-                              value={seriesForm.description}
-                              onChange={(e) => setSeriesForm({ ...seriesForm, description: e.target.value })}
-                              className="bg-black border-gray-700 flex-1"
-                              rows={3}
-                              placeholder="Series description..."
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={!seriesForm.description || translating.seriesDesc}
-                              onClick={async () => {
-                                setTranslating({ ...translating, seriesDesc: true })
-                                const translated = await translateField(seriesForm.description, 'ar', 'en')
-                                setSeriesForm({ ...seriesForm, description_ar: translated })
-                                setTranslating({ ...translating, seriesDesc: false })
-                                toast({ title: 'تمت الترجمة', description: 'تم ترجمة الوصف إلى العربية' })
-                              }}
-                              className="shrink-0 self-start"
-                            >
-                              {translating.seriesDesc ? (
-                                <span className="animate-spin">⟳</span>
-                              ) : (
-                                <span>🌐 عربي</span>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label>الوصف بالعربية</Label>
+                          <Label>الوصف</Label>
                           <Textarea
-                            value={seriesForm.description_ar || ''}
-                            onChange={(e) => setSeriesForm({ ...seriesForm, description_ar: e.target.value })}
+                            value={seriesForm.description}
+                            onChange={(e) => setSeriesForm({ ...seriesForm, description: e.target.value })}
                             className="bg-black border-gray-700"
                             rows={3}
-                            placeholder="وصف المسلسل بالعربية..."
                           />
                         </div>
 
