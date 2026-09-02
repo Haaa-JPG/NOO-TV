@@ -1,1 +1,0 @@
-ALTER TABLE public.series ADD COLUMN IF NOT EXISTS trailer_url TEXT DEFAULT '';
