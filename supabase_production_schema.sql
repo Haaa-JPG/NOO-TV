@@ -9,6 +9,13 @@
 
 
 -- ============================================================
+-- SECTION 0: EXTENSIONS
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+
+-- ============================================================
 -- SECTION 1: TABLES (15 tables)
 -- ============================================================
 
@@ -270,20 +277,28 @@ AS $$
 DECLARE
   v_user_id UUID;
   v_result JSON;
+  v_encrypted_password TEXT;
 BEGIN
-  -- Create auth user
-  v_user_id := gen_random_uuid();
+  -- Check if email already exists
+  IF EXISTS (SELECT 1 FROM auth.users WHERE email = p_email) THEN
+    RETURN jsonb_build_object('error', 'البريد الإلكتروني مستخدم بالفعل');
+  END IF;
 
+  -- Create user ID and encrypt password
+  v_user_id := gen_random_uuid();
+  v_encrypted_password := crypt(p_password, gen_salt('bf'));
+
+  -- Create auth user
   INSERT INTO auth.users (
-    id, instance_id, aud, role, email, encrypted_password,
+    id, aud, role, email, encrypted_password,
     email_confirmed_at, raw_user_meta_data, raw_app_meta_data,
-    created_at, updated_at, confirmation_token
+    created_at, updated_at
   ) VALUES (
-    v_user_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-    p_email, crypt(p_password, gen_salt('bf')),
+    v_user_id, 'authenticated', 'authenticated',
+    p_email, v_encrypted_password,
     NOW(), jsonb_build_object('display_name', p_display_name),
     '{"provider": "email", "providers": ["email"]}'::jsonb,
-    NOW(), NOW(), ''
+    NOW(), NOW()
   );
 
   -- Create auth identity
@@ -302,6 +317,9 @@ BEGIN
 
   SELECT jsonb_build_object('id', v_user_id, 'email', p_email) INTO v_result;
   RETURN v_result;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object('error', 'حدث خطأ أثناء إنشاء الحساب: ' || SQLERRM);
 END;
 $$;
 

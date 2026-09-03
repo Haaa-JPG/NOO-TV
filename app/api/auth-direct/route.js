@@ -42,6 +42,7 @@ export async function POST(request) {
     const data = result.rows[0].direct_signup
 
     if (data.error) {
+      console.error('Direct signup error:', data.error)
       return NextResponse.json({ error: data.error }, { status: 400 })
     }
 
