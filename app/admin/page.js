@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload, Play, X } from 'lucide-react'
+import { Film, Tv, Users, Plus, Edit, Trash2, Eye, EyeOff, LogOut, Tag, ListVideo, Ban, ChevronDown, Calendar, Clock, RefreshCw, AlertTriangle, Upload, Play, X, FileText } from 'lucide-react'
 import Link from 'next/link'
 
 function sanitize(str) {
@@ -229,6 +229,11 @@ export default function AdminPanel() {
   const [introVideoUrl, setIntroVideoUrl] = useState('')
   const [savingIntro, setSavingIntro] = useState(false)
 
+  // Legal pages
+  const [legalDisclaimer, setLegalDisclaimer] = useState('')
+  const [legalPrivacy, setLegalPrivacy] = useState('')
+  const [savingLegal, setSavingLegal] = useState(false)
+
   // Preview
   const [previewUrl, setPreviewUrl] = useState(null)
 
@@ -331,6 +336,33 @@ export default function AdminPanel() {
       .eq('setting_key', 'intro_video_url')
       .maybeSingle()
     if (introData?.setting_value) setIntroVideoUrl(introData.setting_value)
+
+    // Load legal pages
+    try {
+      const legalRes = await fetch('/api/legal')
+      if (legalRes.ok) {
+        const legalData = await legalRes.json()
+        setLegalDisclaimer(legalData.disclaimer || '')
+        setLegalPrivacy(legalData.privacy || '')
+      }
+    } catch {}
+  }
+
+  const saveLegalPages = async () => {
+    setSavingLegal(true)
+    try {
+      const res = await fetch('/api/legal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disclaimer: legalDisclaimer, privacy: legalPrivacy }),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      toast({ title: 'تم حفظ الصفحات القانونية' })
+    } catch (err) {
+      toast({ title: 'خطأ', description: err.message, variant: 'destructive' })
+    } finally {
+      setSavingLegal(false)
+    }
   }
 
   const loadHeroItems = async () => {
@@ -930,6 +962,9 @@ export default function AdminPanel() {
             </TabsTrigger>
             <TabsTrigger value="hero" className="data-[state=active]:bg-red-600">
               <Eye className="w-4 h-4 ml-2" /> البانر الرئيسي
+            </TabsTrigger>
+            <TabsTrigger value="legal" className="data-[state=active]:bg-red-600">
+              <FileText className="w-4 h-4 ml-2" /> الصفحات القانونية
             </TabsTrigger>
           </TabsList>
 
@@ -2320,6 +2355,50 @@ export default function AdminPanel() {
               {heroItems.length === 0 && (
                 <p className="text-center text-gray-400 py-8">لا توجد عناصر في البانر. أضف صورة أو فيديو.</p>
               )}
+            </div>
+          </TabsContent>
+
+          {/* ================= LEGAL PAGES ================= */}
+          <TabsContent value="legal">
+            <div className="space-y-6">
+              <Card className="bg-gray-900 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <FileText className="w-5 h-5" /> إخلاء المسؤولية
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={legalDisclaimer}
+                    onChange={e => setLegalDisclaimer(e.target.value)}
+                    className="bg-gray-800 border-gray-700 text-white min-h-[300px] font-mono text-sm"
+                    placeholder="اكتب محتوى صفحة إخلاء المسؤولية هنا..."
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gray-900 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <FileText className="w-5 h-5" /> سياسة الخصوصية
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={legalPrivacy}
+                    onChange={e => setLegalPrivacy(e.target.value)}
+                    className="bg-gray-800 border-gray-700 text-white min-h-[300px] font-mono text-sm"
+                    placeholder="اكتب محتوى صفحة سياسة الخصوصية هنا..."
+                  />
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end">
+                <Button onClick={saveLegalPages} disabled={savingLegal} className="bg-red-600 hover:bg-red-700">
+                  {savingLegal ? <RefreshCw className="w-4 h-4 animate-spin ml-2" /> : null}
+                  حفظ
+                </Button>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
