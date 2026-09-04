@@ -25,8 +25,7 @@ export default function Home() {
   const [heroIndex, setHeroIndex] = useState(0)
 
   useEffect(() => {
-    checkUser()
-    loadContent()
+    Promise.allSettled([checkUser(), loadContent()]).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
@@ -70,93 +69,95 @@ export default function Home() {
   }, [heroIndex, heroItems])
 
   const checkUser = async () => {
-    const { user } = await getCurrentUser()
-    if (user) {
-      // Fetch role from the users table (source of truth)
-      const { data: profile } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
-      if (profile) {
-        user.user_metadata = { ...user.user_metadata, role: profile.role }
+    try {
+      const { user } = await getCurrentUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (profile) {
+          user.user_metadata = { ...user.user_metadata, role: profile.role }
+        }
       }
+      setUser(user)
+    } catch (e) {
+      console.error('checkUser error:', e)
+      setUser(null)
     }
-    setUser(user)
-    setLoading(false)
   }
 
   const loadContent = async () => {
-    // Load movies
-    const { data: moviesData } = await supabase
-      .from('movies')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-      .limit(12)
-    
-    if (moviesData) setMovies(moviesData)
+    try {
+      const { data: moviesData, error: moviesErr } = await supabase
+        .from('movies')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .limit(12)
+      if (moviesErr) console.error('Movies error:', moviesErr)
+      if (moviesData) setMovies(moviesData)
 
-    // Load series with episode counts
-    const { data: seriesData } = await supabase
-      .from('series')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-      .limit(12)
-    
-    if (seriesData) {
-      const seriesIds = seriesData.map(s => s.id)
-      const { data: allSeasons } = await supabase
-        .from('seasons')
-        .select('id, series_id')
-        .in('series_id', seriesIds)
+      const { data: seriesData, error: seriesErr } = await supabase
+        .from('series')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .limit(12)
+      if (seriesErr) console.error('Series error:', seriesErr)
+      if (seriesData) {
+        const seriesIds = seriesData.map(s => s.id)
+        const { data: allSeasons } = await supabase
+          .from('seasons')
+          .select('id, series_id')
+          .in('series_id', seriesIds)
 
-      const seasonMap = {}
-      ;(allSeasons || []).forEach(s => {
-        if (!seasonMap[s.series_id]) seasonMap[s.series_id] = []
-        seasonMap[s.series_id].push(s.id)
-      })
-
-      const allSeasonIds = (allSeasons || []).map(s => s.id)
-      let episodeCounts = {}
-      if (allSeasonIds.length > 0) {
-        const { data: epCounts } = await supabase
-          .from('episodes')
-          .select('season_id')
-          .in('season_id', allSeasonIds)
-          .eq('is_active', true)
-        ;(epCounts || []).forEach(ep => {
-          const seriesId = allSeasons.find(s => s.id === ep.season_id)?.series_id
-          if (seriesId) {
-            episodeCounts[seriesId] = (episodeCounts[seriesId] || 0) + 1
-          }
+        const seasonMap = {}
+        ;(allSeasons || []).forEach(s => {
+          if (!seasonMap[s.series_id]) seasonMap[s.series_id] = []
+          seasonMap[s.series_id].push(s.id)
         })
+
+        const allSeasonIds = (allSeasons || []).map(s => s.id)
+        let episodeCounts = {}
+        if (allSeasonIds.length > 0) {
+          const { data: epCounts } = await supabase
+            .from('episodes')
+            .select('season_id')
+            .in('season_id', allSeasonIds)
+            .eq('is_active', true)
+          ;(epCounts || []).forEach(ep => {
+            const seriesId = allSeasons.find(s => s.id === ep.season_id)?.series_id
+            if (seriesId) {
+              episodeCounts[seriesId] = (episodeCounts[seriesId] || 0) + 1
+            }
+          })
+        }
+
+        const seriesWithCounts = seriesData.map(show => ({
+          ...show,
+          episode_count: episodeCounts[show.id] || 0,
+        }))
+        setSeries(seriesWithCounts)
       }
 
-      const seriesWithCounts = seriesData.map(show => ({
-        ...show,
-        episode_count: episodeCounts[show.id] || 0,
-      }))
-      setSeries(seriesWithCounts)
+      const { data: categoriesData } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+      if (categoriesData) setCategories(categoriesData)
+
+      const { data: heroData } = await supabase
+        .from('featured_hero')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+      if (heroData) setHeroItems(heroData)
+    } catch (e) {
+      console.error('loadContent error:', e)
     }
-
-    // Load categories
-    const { data: categoriesData } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-    
-    if (categoriesData) setCategories(categoriesData)
-
-    // Load hero items
-    const { data: heroData } = await supabase
-      .from('featured_hero')
-      .select('*')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-    if (heroData) setHeroItems(heroData)
   }
 
   const handleSignOut = async () => {
