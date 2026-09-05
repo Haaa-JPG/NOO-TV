@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getDbClient } from '@/lib/db'
 import { checkRateLimit, maybeCleanup } from '@/lib/rate-limit'
-import { sanitizeText } from '@/lib/security'
+import { sanitizeText, isCleanString } from '@/lib/security'
 
 async function getAuthUser(request) {
   try {
@@ -72,7 +72,10 @@ export async function PUT(request) {
     }
 
     const safeTitle = sanitizeText(title, 200)
-    const safeContent = sanitizeText(content, 50000)
+    if (!isCleanString(content, 100000)) {
+      return NextResponse.json({ error: 'المحتوى غير صحيح' }, { status: 400 })
+    }
+    const safeContent = content
 
     client = getDbClient()
     await client.connect()
