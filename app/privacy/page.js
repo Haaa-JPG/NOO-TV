@@ -1,111 +1,22 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { useState, useEffect } from 'react'
-
-const DEFAULT_PRIVACY = `<section>
-<h2>1. المعلومات التي نجمعها</h2>
-<p>
-نجمع المعلومات التالية عند التسجيل في الموقع:
-</p>
-<ul>
-<li>البريد الإلكتروني</li>
-<li>اسم المستخدم</li>
-<li>تفضيلات المشاهدة وسجل المشاهدة</li>
-<li>المحتوى المفضل (قائمة المفضلة)</li>
-</ul>
-</section>
-
-<section>
-<h2>2. كيفية استخدام المعلومات</h2>
-<p>
-نستخدم المعلومات المجمعة للأغراض التالية:
-</p>
-<ul>
-<li>تخصيص تجربة المشاهدة</li>
-<li>تحسين محتوى الموقع</li>
-<li>إرسال إشعارات حول المحتوى الجديد</li>
-<li>الحفاظ على أمان حسابك</li>
-</ul>
-</section>
-
-<section>
-<h2>3. حماية البيانات</h2>
-<p>
-نتخذ إجراءات أمنية مناسبة لحماية معلوماتك الشخصية من الوصول غير المصرح به أو الاستخدام أو التغيير أو الإفصاح.
-</p>
-</section>
-
-<section>
-<h2>4. مشاركة البيانات</h2>
-<p>
-لا نبيع أو نتاجر ببياناتك الشخصية مع أطراف ثالثة. قد نشارك معلوماتك فقط في الحالات التالية:
-</p>
-<ul>
-<li>الامتثال للقانون أو الطلبات القانونية</li>
-<li>حماية حقوقنا أو سلامة مستخدمينا</li>
-</ul>
-</section>
-
-<section>
-<h2>5. ملفات تعريف الارتباط</h2>
-<p>
-نستخدم ملفات تعريف الارتباط لتحسين تجربتك على الموقع وتسجيل دخولك تلقائياً.
-</p>
-</section>
-
-<section>
-<h2>6. حقوقك</h2>
-<p>
-لديك الحق في:
-</p>
-<ul>
-<li>الوصول إلى بياناتك الشخصية</li>
-<li>تعديل أو حذف بياناتك</li>
-<li>إلغاء حسابك في أي وقت</li>
-</ul>
-</section>
-
-<section>
-<h2>7. التواصل معنا</h2>
-<p>
-لأي استفسارات حول سياسة الخصوصية، يمكنك التواصل من خلال صفحة الشكاوى.
-</p>
-</section>`
-
-function renderSections(html) {
-  if (!html) return null
-  const sections = html.split(/<\/section>/i).filter(Boolean)
-  return sections.map((section, i) => {
-    const h2Match = section.match(/<h2[^>]*>(.*?)<\/h2>/i)
-    const contentMatch = section.match(/<\/h2>([\s\S]*)/i)
-    if (!h2Match || !contentMatch) return null
-    const contentHtml = contentMatch[1].trim()
-    return (
-      <section key={i}>
-        <h2 className="text-xl font-bold text-white mb-3">{h2Match[1]}</h2>
-        <div dangerouslySetInnerHTML={{
-          __html: contentHtml
-            .replace(/<ul>/g, '<ul className="list-disc list-inside mt-2 space-y-1">')
-            .replace(/<p>/g, '<p>')
-        }} />
-      </section>
-    )
-  })
-}
+import PageEditor from '@/components/page-editor'
 
 export default function PrivacyPage() {
-  const [content, setContent] = useState('')
+  const [page, setPage] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/legal')
+    fetch('/api/legal?slug=privacy')
       .then(r => r.json())
       .then(data => {
-        if (data.privacy) setContent(data.privacy)
-        else setContent(DEFAULT_PRIVACY)
+        setPage(data)
+        setLoading(false)
       })
-      .catch(() => setContent(DEFAULT_PRIVACY))
+      .catch(() => setLoading(false))
   }, [])
 
   return (
@@ -120,10 +31,13 @@ export default function PrivacyPage() {
       </header>
 
       <div className="container mx-auto px-4 py-12 max-w-3xl">
-        <h1 className="text-3xl font-bold mb-8 text-red-600">سياسة الخصوصية</h1>
-        <div className="space-y-6 text-gray-300 leading-relaxed">
-          {renderSections(content)}
-        </div>
+        {loading ? (
+          <div className="text-center text-gray-500 py-20">جاري التحميل...</div>
+        ) : page ? (
+          <PageEditor slug="privacy" initialTitle={page.title} initialContent={page.content} />
+        ) : (
+          <div className="text-center text-gray-500 py-20">الصفحة غير موجودة</div>
+        )}
       </div>
     </div>
   )
