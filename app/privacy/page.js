@@ -1,23 +1,29 @@
-'use client'
-
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
+import { getDbClient } from '@/lib/db'
 import PageEditor from '@/components/page-editor'
 
-export default function PrivacyPage() {
-  const [page, setPage] = useState(null)
-  const [loading, setLoading] = useState(true)
+async function getPage(slug) {
+  try {
+    const client = getDbClient()
+    await client.connect()
+    const result = await client.query(
+      'SELECT slug, title, content FROM pages WHERE slug = $1',
+      [slug]
+    )
+    await client.end()
+    return result.rows[0] || null
+  } catch (err) {
+    console.error('Failed to load page:', err)
+    return null
+  }
+}
 
-  useEffect(() => {
-    fetch('/api/legal?slug=privacy')
-      .then(r => r.json())
-      .then(data => {
-        setPage(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
+export const dynamic = 'force-dynamic'
+export const metadata = { title: 'سياسة الخصوصية - NOO TV' }
+
+export default async function PrivacyPage() {
+  const page = await getPage('privacy')
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -31,9 +37,7 @@ export default function PrivacyPage() {
       </header>
 
       <div className="container mx-auto px-4 py-12 max-w-3xl">
-        {loading ? (
-          <div className="text-center text-gray-500 py-20">جاري التحميل...</div>
-        ) : page ? (
+        {page ? (
           <PageEditor slug="privacy" initialTitle={page.title} initialContent={page.content} />
         ) : (
           <div className="text-center text-gray-500 py-20">الصفحة غير موجودة</div>

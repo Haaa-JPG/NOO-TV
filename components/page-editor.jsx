@@ -18,7 +18,7 @@ export default function PageEditor({ slug, initialTitle, initialContent }) {
   const textareaRef = useRef(null)
 
   useEffect(() => {
-    getCurrentUser().then(user => {
+    getCurrentUser().then(({ user }) => {
       if (user) {
         fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${user.id}&select=role`, {
           headers: {
