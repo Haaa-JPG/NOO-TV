@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { signIn, signUp, signInWithGoogle, ensureUserProfile, supabase } from '@/lib/supabase'
+import { signIn, signInWithGoogle, ensureUserProfile, supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,20 +38,20 @@ function AuthContent() {
     setLoading(true)
 
     try {
-      if (isLogin) {
-        const { data, error } = await signIn(formData.email, formData.password)
-        if (error) {
-          if (error.message.includes('Email not confirmed') || error.message.includes('email not confirmed')) {
-            throw new Error('يجب تأكيد البريد الإلكتروني أولاً. يرجى المحاولة مرة أخرى.')
+if (isLogin) {
+          const { data, error } = await signIn(formData.email, formData.password)
+          if (error) {
+            if (error.message.includes('Email not confirmed') || error.message.includes('email not confirmed')) {
+              throw new Error('يجب تأكيد البريد الإلكتروني أولاً. يرجى المحاولة مرة أخرى.')
+            }
+            if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
+              throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة')
+            }
+            if (error.message.includes('rate limit') || error.message.includes('too many')) {
+              throw new Error('تم تجاوز حد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.')
+            }
+            throw error
           }
-          if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
-            throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة')
-          }
-          if (error.message.includes('rate limit') || error.message.includes('too many')) {
-            throw new Error('تم تجاوز حد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.')
-          }
-          throw error
-        }
 
         if (data?.user) {
           await ensureUserProfile(data.user)
@@ -79,36 +79,35 @@ function AuthContent() {
         })
         router.push(redirectTo)
       } else {
-        const { data, error } = await signUp(
-          formData.email,
-          formData.password,
-          formData.displayName
-        )
+        const signupRes = await fetch('/api/auth-direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            displayName: formData.displayName
+          })
+        })
+        const signupData = await signupRes.json()
 
-        if (error) {
-          if (error.message.includes('already registered') || error.message.includes('already been registered')) {
-            throw new Error('هذا البريد الإلكتروني مسجل بالفعل')
-          }
-          if (error.message.includes('rate limit') || error.message.includes('too many')) {
-            throw new Error('تم تجاوز حد المحاولات. انتظر قليلاً ثم حاول مرة أخرى.')
-          }
-          throw error
+        if (!signupRes.ok || signupData.error) {
+          throw new Error(signupData.error || 'فشل إنشاء الحساب')
         }
 
-        if (data?.user && !data?.session) {
-          toast({
-            title: 'تم إنشاء الحساب بنجاح',
-            description: 'جاري تسجيل الدخول...'
-          })
-        } else {
-          toast({
-            title: 'تم إنشاء الحساب وتسجيل الدخول',
-            description: 'مرحباً بك!'
-          })
+        toast({
+          title: 'تم إنشاء الحساب بنجاح',
+          description: 'جاري تسجيل الدخول...'
+        })
+
+        const { data: loginData, error: loginError } = await signIn(formData.email, formData.password)
+        if (loginError) {
+          setIsLogin(true)
+          setFormData(prev => ({ ...prev, displayName: '' }))
+          return
         }
 
-        if (data?.user) {
-          await ensureUserProfile(data.user)
+        if (loginData?.user) {
+          await ensureUserProfile(loginData.user)
         }
 
         toast({
@@ -205,7 +204,6 @@ function AuthContent() {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="bg-black border-gray-700 text-white"
                   required
-                  minLength={6}
                 />
               </div>
 
